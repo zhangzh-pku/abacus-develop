@@ -2060,6 +2060,27 @@ bool Input::Read(const std::string &fn)
             read_value(ifs, precision);
         }
         //----------------------------------------------------------------------------------
+        // Parameters about PEXSI
+        // Zhihao Zhang add 2023-03-30
+        //----------------------------------------------------------------------------------
+        else if (strcmp("max_pexsi_iter", word) == 0) {
+            read_value(ifs, max_pexsi_iter);
+        }
+        else if (strcmp("is_pexsi_inertia_count", word) == 0){
+            read_value(ifs, is_pexsi_inertia_count);
+        }
+        else if (strcmp("pexsi_verbosity", word) == 0){
+            read_value(ifs, pexsi_verbosity);
+        }
+        else if (strcmp("pexsi_num_pole", word) == 0){
+            read_value(ifs, pexsi_num_pole);
+        }
+        else if (strcmp("pexsi_nprow", word) == 0){
+            read_value(ifs, pexsi_nprow);
+        }
+        else if (strcmp("pexsi_npcol", word) == 0){
+            read_value(ifs, pexsi_npcol);
+        }
         else
         {
             // xiaohui add 2015-09-15
@@ -3296,6 +3317,10 @@ void Input::Check(void)
         {
             ModuleBase::WARNING_QUIT("Input", "please check the ks_solver parameter!");
         }
+        else if (ks_solver == "pexsi") // Zhihao Zhang add 2023.3.30
+        {
+            ModuleBase::WARNING_QUIT("Input", "pexsi can not be used with plane wave basis");
+        }
 
         if (gamma_only)
         {
@@ -3356,6 +3381,15 @@ void Input::Check(void)
         else if (ks_solver != "default")
         {
             ModuleBase::WARNING_QUIT("Input", "please check the ks_solver parameter!");
+        }
+        else if (ks_solver == "pexsi")
+        {
+#ifdef __MPI
+            GlobalV::ofs_warning << "pexsi is under testing" <<endl;
+#else
+            ModuleBase::WARNING_QUIT("Input", "pexsi can not be used for series version")
+#endif
+
         }
 
         if (kpar > 1)

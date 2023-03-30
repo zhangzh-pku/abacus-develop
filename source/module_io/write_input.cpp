@@ -145,7 +145,7 @@ void Input::Print(const std::string &fn) const
     ModuleBase::GlobalFunc::OUTP(ofs,
                                  "ks_solver",
                                  GlobalV::KS_SOLVER,
-                                 "cg; dav; lapack; genelpa; scalapack_gvx; cusolver");
+                                 "cg; dav; lapack; genelpa; scalapack_gvx; cusolver; pexsi");
     ModuleBase::GlobalFunc::OUTP(ofs, "scf_nmax", scf_nmax, "#number of electron iterations");
     ModuleBase::GlobalFunc::OUTP(ofs, "relax_nmax", relax_nmax, "number of ion iteration steps");
     ModuleBase::GlobalFunc::OUTP(ofs, "out_stru", out_stru, "output the structure files after each ion step");
