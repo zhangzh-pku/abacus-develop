@@ -2,7 +2,6 @@
 #define DIGAOELPA_H
 
 #include "diagh.h"
-#include "module_orbital/parallel_orbitals.h"
 
 namespace hsolver
 {
