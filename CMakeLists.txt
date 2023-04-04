@@ -29,7 +29,7 @@ option(GIT_SUBMODULE "Check submodules during build" ON)
 option(DEBUG_INFO "Print message for developers to debug." OFF)
 # Do not enable it if generated code will run on different CPUs
 option(ENABLE_NATIVE_OPTIMIZATION "Enable compilation optimization for the native machine's CPU type" OFF)
-option(USE_PEXSI "Enable PEXSI" on)
+option(USE_PEXSI "Enable PEXSI" OFF)
 
 if(ENABLE_LCAO)
   set(ABACUS_BIN_NAME abacus)
