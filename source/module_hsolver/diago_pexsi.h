@@ -1,5 +1,6 @@
 #ifndef DIGAOPEXSI_H
-#define DIGAOELPA_H
+#define DIGAOPEXSI_H
+
 
 #include "diagh.h"
 
@@ -14,3 +15,4 @@ class DiagoPexsi : public DiagH<double>
 };
 
 }
+#endif

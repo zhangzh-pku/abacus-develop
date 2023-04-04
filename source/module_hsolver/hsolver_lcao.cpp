@@ -88,13 +88,13 @@ void HSolverLCAO::solveTemplate(hamilt::Hamilt<double>* pHamilt,
             if (pdiagh->method != this->method)
             {
                 delete[] pdiagh;
-                pdiagh == nullptr
+                pdiagh == nullptr;
             }
         }
         if (pdiagh == nullptr)
         {
             pdiagh = new DiagoPexsi();
-            pdiagh->method = this->method
+            pdiagh->method = this->method;
         }
     }
     else

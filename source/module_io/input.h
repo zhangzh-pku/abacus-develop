@@ -555,6 +555,15 @@ class Input
     // variables for test only
     //==========================================================
     bool test_skip_ewald = false;
+    //==========================================================
+    //    pexsi input Zhihao Zhang added on 2023-03-30
+    //==========================================================
+    int max_pexsi_iter;
+    int is_pexsi_inertia_count;
+    int pexsi_verbosity;
+    int pexsi_num_pole;
+    int pexsi_nprow;
+    int pexsi_npcol;
 
   private:
     //==========================================================

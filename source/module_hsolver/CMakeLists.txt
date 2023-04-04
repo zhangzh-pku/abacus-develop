@@ -16,7 +16,12 @@ if(ENABLE_LCAO)
         diago_elpa.cpp
     )
   endif ()
-
+  if (USE_PEXSI)
+    include_directories(${PEXSI_INCLUDE_DIR})
+    list(APPEND objects
+        diago_pexsi.cpp
+    )
+  endif ()
   if(USE_CUSOLVER_LCAO)
       list(APPEND objects
           diag_cusolver.cu
