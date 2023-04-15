@@ -1,3 +1,4 @@
+#ifdef  __PEXSI
 #include "c_pexsi_interface.h"
 #include "diago_pexsi.h"
 #include "module_base/global_variable.h"
@@ -20,3 +21,4 @@ void DiagoPexsi::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<std::complex<doub
 }
 
 }
+#endif

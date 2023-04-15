@@ -167,6 +167,12 @@ ifdef DeePMD_DIR
     INCLUDES += -I${TensorFlow_INCLUDE_DIR}
 endif
 
+ifdef PEXSI_DIR
+    INCLUDES += -I${PEXSI_INCLUDE_DIR}
+    LIBS += -L${PEXSI_LIB_DIR} -lpexsi_linux_release_v2.0
+    HONG += -D__PEXSI
+endif
+
 include Makefile.Objects
 
 #==========================

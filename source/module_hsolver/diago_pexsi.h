@@ -1,6 +1,7 @@
 #ifndef DIGAOPEXSI_H
 #define DIGAOPEXSI_H
 
+#ifdef  __PEXSI
 
 #include "diagh.h"
 
@@ -15,4 +16,6 @@ class DiagoPexsi : public DiagH<double>
 };
 
 }
+
+#endif
 #endif

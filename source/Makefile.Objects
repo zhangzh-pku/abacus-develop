@@ -245,6 +245,7 @@ OBJS_HSOLVER_LCAO=hsolver_lcao.o\
       elpa_new_real.o\
       elpa_new_complex.o\
       utils.o\
+      diago_pexsi.o\
 
 OBJS_MD=MD_func.o\
     run_md.o\
