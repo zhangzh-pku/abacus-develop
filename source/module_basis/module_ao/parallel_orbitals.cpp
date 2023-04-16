@@ -244,8 +244,9 @@ void ORB_control::divide_HS_2d(
     pv->ncol = pv->MatrixInfo.col_num;
     pv->nloc = pv->MatrixInfo.col_num * pv->MatrixInfo.row_num;
 
-    // init blacs context for genelpa
-    if (ks_solver == "genelpa" || ks_solver == "scalapack_gvx" || ks_solver == "cusolver")
+    // init blacs context for genelpa and pexsi
+    // 存疑
+    if (ks_solver == "genelpa" || ks_solver == "scalapack_gvx" || ks_solver == "cusolver", ks_solver == "pexsi")
     {
         pv->blacs_ctxt = cart2blacs(pv->comm_2D,
                                     pv->dim0,

@@ -93,7 +93,7 @@ void HSolverLCAO::solveTemplate(hamilt::Hamilt<double>* pHamilt,
         }
         if (pdiagh == nullptr)
         {
-            pdiagh = new DiagoPexsi();
+            pdiagh = new DiagoPexsi(this->ParaV);
             pdiagh->method = this->method;
         }
     }
