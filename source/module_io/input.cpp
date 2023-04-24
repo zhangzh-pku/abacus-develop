@@ -8,8 +8,8 @@
 #include "module_base/global_file.h"
 #include "module_base/global_function.h"
 #include "module_base/global_variable.h"
-#include "module_base/timer.h"
 #include "module_base/parallel_common.h"
+#include "module_base/timer.h"
 
 #include <fstream>
 #include <iomanip>
@@ -55,7 +55,8 @@ void Input::Init(const std::string &fn)
     // NAME : Run::make_dir( dir name : OUT.suffix)
     //----------------------------------------------------------
     bool out_dir = false;
-    if(!out_app_flag && (out_mat_hs2 || out_mat_r || out_mat_t || out_mat_dh)) out_dir = true;
+    if (!out_app_flag && (out_mat_hs2 || out_mat_r || out_mat_t || out_mat_dh))
+        out_dir = true;
     ModuleBase::Global_File::make_dir_out(this->suffix,
                                           this->calculation,
                                           out_dir,
@@ -68,9 +69,11 @@ void Input::Init(const std::string &fn)
     GlobalV::ofs_running << "                                                                                     "
                          << std::endl;
     GlobalV::ofs_running << "                              ABACUS v3.2                                            "
-                         << std::endl << std::endl;
+                         << std::endl
+                         << std::endl;
     GlobalV::ofs_running << "               Atomic-orbital Based Ab-initio Computation at UStc                    "
-                         << std::endl << std::endl;
+                         << std::endl
+                         << std::endl;
     GlobalV::ofs_running << "                     Website: http://abacus.ustc.edu.cn/                             "
                          << std::endl;
     GlobalV::ofs_running << "               Documentation: https://abacus.deepmodeling.com/                       "
@@ -78,7 +81,8 @@ void Input::Init(const std::string &fn)
     GlobalV::ofs_running << "                  Repository: https://github.com/abacusmodeling/abacus-develop       "
                          << std::endl;
     GlobalV::ofs_running << "                              https://github.com/deepmodeling/abacus-develop         "
-                         << std::endl << std::endl;
+                         << std::endl
+                         << std::endl;
     GlobalV::ofs_running << std::setiosflags(ios::right);
 
 #ifdef __MPI
@@ -438,7 +442,7 @@ void Input::Default(void)
     td_gauss_freq = "22.13"; // fs^-1
     td_gauss_phase = "0.0";
     td_gauss_sigma = "30.0"; // fs
-    td_gauss_t0 = "100.0"; 
+    td_gauss_t0 = "100.0";
     td_gauss_amp = "0.25"; // V/A
 
     // Trapezoid
@@ -546,18 +550,18 @@ void Input::Default(void)
     //==========================================================
     // spherical bessel  Peize Lin added on 2022-12-15
     //==========================================================
-	bessel_nao_smooth = true;
-	bessel_nao_sigma = 0.1;
-	bessel_nao_ecut = "default";
-	bessel_nao_rcut = 6.0;				// -1.0 for forcing manual setting
-	bessel_nao_tolerence = 1E-12;
+    bessel_nao_smooth = true;
+    bessel_nao_sigma = 0.1;
+    bessel_nao_ecut = "default";
+    bessel_nao_rcut = 6.0; // -1.0 for forcing manual setting
+    bessel_nao_tolerence = 1E-12;
 
-	bessel_descriptor_lmax = 2;			// -1 for forcing manual setting
-	bessel_descriptor_smooth = true;
-	bessel_descriptor_sigma = 0.1;
-	bessel_descriptor_ecut = "default";
-	bessel_descriptor_rcut = 6.0;		// -1.0 for forcing manual setting
-	bessel_descriptor_tolerence = 1E-12;
+    bessel_descriptor_lmax = 2; // -1 for forcing manual setting
+    bessel_descriptor_smooth = true;
+    bessel_descriptor_sigma = 0.1;
+    bessel_descriptor_ecut = "default";
+    bessel_descriptor_rcut = 6.0; // -1.0 for forcing manual setting
+    bessel_descriptor_tolerence = 1E-12;
 
     //==========================================================
     //    device control denghui added on 2022-11-15
@@ -2056,29 +2060,36 @@ bool Input::Read(const std::string &fn)
         //----------------------------------------------------------------------------------
         //    precision control denghui added on 2023-01-01
         //----------------------------------------------------------------------------------
-        else if (strcmp("precision", word) == 0) {
+        else if (strcmp("precision", word) == 0)
+        {
             read_value(ifs, precision);
         }
         //----------------------------------------------------------------------------------
         // Parameters about PEXSI
         // Zhihao Zhang add 2023-03-30
         //----------------------------------------------------------------------------------
-        else if (strcmp("max_pexsi_iter", word) == 0) {
+        else if (strcmp("max_pexsi_iter", word) == 0)
+        {
             read_value(ifs, max_pexsi_iter);
         }
-        else if (strcmp("is_pexsi_inertia_count", word) == 0){
+        else if (strcmp("is_pexsi_inertia_count", word) == 0)
+        {
             read_value(ifs, is_pexsi_inertia_count);
         }
-        else if (strcmp("pexsi_verbosity", word) == 0){
+        else if (strcmp("pexsi_verbosity", word) == 0)
+        {
             read_value(ifs, pexsi_verbosity);
         }
-        else if (strcmp("pexsi_num_pole", word) == 0){
+        else if (strcmp("pexsi_num_pole", word) == 0)
+        {
             read_value(ifs, pexsi_num_pole);
         }
-        else if (strcmp("pexsi_nprow", word) == 0){
+        else if (strcmp("pexsi_nprow", word) == 0)
+        {
             read_value(ifs, pexsi_nprow);
         }
-        else if (strcmp("pexsi_npcol", word) == 0){
+        else if (strcmp("pexsi_npcol", word) == 0)
+        {
             read_value(ifs, pexsi_npcol);
         }
         else
@@ -2129,9 +2140,9 @@ bool Input::Read(const std::string &fn)
     // sunliang added on 2022-12-06
     // To check if ntype in INPUT is equal to the atom species in STRU, if ntype is not set in INPUT, we will set it
     // according to STRU.
-    if(this->stru_file == "")
+    if (this->stru_file == "")
     {
-        this->stru_file="STRU";
+        this->stru_file = "STRU";
     }
     double ntype_stru = this->count_ntype(this->stru_file);
     if (this->ntype == 0)
@@ -2355,9 +2366,10 @@ bool Input::Read(const std::string &fn)
     }
     if ((out_mat_r || out_mat_hs2 || out_mat_t || out_mat_dh) && gamma_only_local)
     {
-        ModuleBase::WARNING_QUIT("Input", "printing of H(R)/S(R)/dH(R)/T(R) is not available for gamma only calculations");
+        ModuleBase::WARNING_QUIT("Input",
+                                 "printing of H(R)/S(R)/dH(R)/T(R) is not available for gamma only calculations");
     }
-    if(out_mat_dh && nspin == 4)
+    if (out_mat_dh && nspin == 4)
     {
         ModuleBase::WARNING_QUIT("Input", "priting of dH not available for nspin = 4");
     }
@@ -2598,7 +2610,7 @@ void Input::Default_2(void) // jiyy add 2019-08-04
             cal_stress = 1;
         }
 
-        if(mdp.md_type == 4 || (mdp.md_type == 1 && mdp.md_pmode != "none"))
+        if (mdp.md_type == 4 || (mdp.md_type == 1 && mdp.md_pmode != "none"))
         {
             GlobalV::md_prec_level = mdp.md_prec_level;
         }
@@ -2679,15 +2691,15 @@ void Input::Default_2(void) // jiyy add 2019-08-04
             ModuleBase::GlobalFunc::AUTO_SET("gamma_only_local", "0");
         }
     }
-    //added by linpz 2023/02/13
-	if (bessel_nao_ecut == "default")
-	{
-		bessel_nao_ecut = std::to_string(ecutwfc);
-	}
-	if (bessel_descriptor_ecut == "default")
-	{
-		bessel_descriptor_ecut = std::to_string(ecutwfc);
-	}
+    // added by linpz 2023/02/13
+    if (bessel_nao_ecut == "default")
+    {
+        bessel_nao_ecut = std::to_string(ecutwfc);
+    }
+    if (bessel_descriptor_ecut == "default")
+    {
+        bessel_descriptor_ecut = std::to_string(ecutwfc);
+    }
 
     if (GlobalV::md_prec_level != 1)
     {
@@ -2853,7 +2865,7 @@ void Input::Bcast()
     Parallel_Common::bcast_bool(deepks_bandgap);
     Parallel_Common::bcast_bool(deepks_out_unittest);
     Parallel_Common::bcast_string(deepks_model);
-    
+
     Parallel_Common::bcast_int(out_pot);
     Parallel_Common::bcast_int(out_wfc_pw);
     Parallel_Common::bcast_bool(out_wfc_r);
@@ -3178,7 +3190,7 @@ void Input::Check(void)
         ModuleBase::WARNING_QUIT("Input", "gate field cannot be used with efield if dip_cor_flag=false !");
     }
 
-    if(ref_cell_factor < 1.0)
+    if (ref_cell_factor < 1.0)
     {
         ModuleBase::WARNING_QUIT("Input", "ref_cell_factor must not be less than 1.0");
     }
@@ -3336,7 +3348,6 @@ void Input::Check(void)
         {
             ModuleBase::WARNING_QUIT("Input", "Fermi Surface Plotting not implemented for plane wave now.");
         }
-
     }
     else if (basis_type == "lcao")
     {
@@ -3378,18 +3389,17 @@ void Input::Check(void)
             ModuleBase::WARNING_QUIT("Input", "Cusolver can not be used for series version.");
 #endif
         }
-        else if (ks_solver != "default")
-        {
-            ModuleBase::WARNING_QUIT("Input", "please check the ks_solver parameter!");
-        }
         else if (ks_solver == "pexsi")
         {
 #ifdef __MPI
-            GlobalV::ofs_warning << "pexsi is under testing" <<endl;
+            GlobalV::ofs_warning << "pexsi is under testing" << endl;
 #else
             ModuleBase::WARNING_QUIT("Input", "pexsi can not be used for series version")
 #endif
-
+        }
+        else if (ks_solver != "default")
+        {
+            ModuleBase::WARNING_QUIT("Input", "please check the ks_solver parameter!");
         }
 
         if (kpar > 1)
@@ -3553,28 +3563,34 @@ void Input::Check(void)
         }
     }
 
-	if(true)	// Numerical_Basis::output_overlap()
-	{
-		if (std::stod(bessel_nao_ecut) < 0)
-		{
-			ModuleBase::WARNING_QUIT("INPUT", "bessel_nao_ecut must >=0");
-		}
-		if (bessel_nao_rcut < 0)
-		{
-			ModuleBase::WARNING_QUIT("INPUT", "bessel_nao_rcut must >=0");
-		}
-	}
-	if(true)	// Numerical_Descriptor::output_descriptor()
-	{
-		if (std::stod(bessel_descriptor_ecut) < 0)
-		{
-			ModuleBase::WARNING_QUIT("INPUT", "bessel_descriptor_ecut must >=0");
-		}
-		if (bessel_descriptor_rcut < 0)
-		{
-			ModuleBase::WARNING_QUIT("INPUT", "bessel_descriptor_rcut must >=0");
-		}
-	}
+    if (true) // Numerical_Basis::output_overlap()
+    {
+        if (std::stod(bessel_nao_ecut) < 0)
+        {
+            ModuleBase::WARNING_QUIT("INPUT", "bessel_nao_ecut must >=0");
+        }
+        if (bessel_nao_rcut < 0)
+        {
+            ModuleBase::WARNING_QUIT("INPUT", "bessel_nao_rcut must >=0");
+        }
+    }
+    if (true) // Numerical_Descriptor::output_descriptor()
+    {
+        if (std::stod(bessel_descriptor_ecut) < 0)
+        {
+            ModuleBase::WARNING_QUIT("INPUT", "bessel_descriptor_ecut must >=0");
+        }
+        if (bessel_descriptor_rcut < 0)
+        {
+            ModuleBase::WARNING_QUIT("INPUT", "bessel_descriptor_rcut must >=0");
+        }
+    }
+
+    // Zhihao Zhang PEXSI does not support multiple K-points
+    if ((gamma_only == 0) && (ks_solver == "pexsi"))
+    {
+        ModuleBase::WARNING_QUIT("INPUT", "PEXSI does not support multiple K-points");
+    }
 
     return;
 }

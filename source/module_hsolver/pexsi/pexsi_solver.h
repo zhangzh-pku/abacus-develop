@@ -1,7 +1,30 @@
-// a simple interface for calling pexsi with 2D block cyclic distributed matrix
-int simplePEXSI(MPI_Comm comm_PEXSI, MPI_Comm comm_2D, MPI_Group group_2D, const int blacs_ctxt,  // communicator parameters
-                const int size, const int nblk, const int nrow, const int ncol, char LAYOUT, // input matrix parameters
-                double* H, double* S,                 // input matrices
-                const double nElectronExact, const std::string PexsiOptionFile,        // pexsi parameters file
-                double*& DM, double*& EDM,      // output matrices
-                double& totalEnergyH, double& totalEnergyS, double& totalFreeEnergy);
+#ifndef PEXSI_Solver_H
+#define PEXSI_Solver_H
+class PEXSI_Solver
+{
+  public:
+    PEXSI_Solver(const int blacs_text,
+                 const int nb,
+                 const int nrow,
+                 const int ncol,
+                 const double* h,
+                 const double* s,
+                 double* DM,
+                 double* EDM,
+                 double& totalEnergyH,
+                 double& totalEnergyS,
+                 double& totalFreeEnergy);
+    int solve();
+    int blacs_text;
+    int nb;
+    int nrow;
+    int ncol;
+    double* h;
+    double* s;
+    double* DM;
+    double* EDM;
+    double totalEnergyH;
+    double totalEnergyS;
+    double totalFreeEnergy;
+};
+#endif

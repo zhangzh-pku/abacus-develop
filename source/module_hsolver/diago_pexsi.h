@@ -6,6 +6,7 @@
 
 #include "module_basis/module_ao/parallel_orbitals.h"
 #include "diagh.h"
+#include "pexsi/pexsi_solver.h"
 
 namespace hsolver
 {
@@ -25,7 +26,7 @@ class DiagoPexsi : public DiagH<double>
     double totalEnergyH;
     double totalEnergyS;
     double totalFreeEnergy;
-
+    PEXSI_Solver* ps;
 };
 
 }

@@ -22,28 +22,20 @@ void DiagoPexsi::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<double>& psi, dou
     phm_in->matrix(h_mat, s_mat);
     std::vector<double> eigen(GlobalV::NLOCAL, 0.0);
     MPI_Comm COMM_DIAG = MPI_COMM_WORLD;
-    extern MPI_Group GRID_GROUP;
-    extern MPI_Group GRID_WORLD;
-    extern MPI_Group DIAG_WORLD;
-    simplePEXSI(GRID_WORLD,
-                DIAG_WORLD,
-                GRID_GROUP,
-                this->ParaV->blacs_ctxt,
-                GlobalV::NLOCAL,
-                this->ParaV->nb,
-                this->ParaV->nrow,
-                this->ParaV->ncol,
-                'C',
-                h_mat.p,
-                s_mat.p,
-                GlobalV::nelec,
-                "PEXSIOPTION",
-                this->DM,
-                this->EDM,
-                this->totalEnergyH,
-                this->totalEnergyS,
-                this->totalFreeEnergy);
-
+    this->ps = new PEXSI_Solver(this->ParaV->blacs_ctxt,
+                                this->ParaV->nb,
+                                this->ParaV->nrow,
+                                this->ParaV->ncol,
+                                h_mat.p,
+                                s_mat.p,
+                                this->DM,
+                                this->EDM,
+                                this->totalEnergyH,
+                                this->totalEnergyS,
+                                this->totalFreeEnergy);
+    this->ps->solve();
+    std::cout << this->ps->totalEnergyH << "xxxxxx" << this->ps->totalEnergyS << "xxxxxx" << this->ps->totalFreeEnergy
+              << std::endl;
     ModuleBase::WARNING_QUIT("DiagoPexsi", "Pexsi is not completed");
 }
 void DiagoPexsi::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<std::complex<double>>& psi, double* eigenvalue_in)
