@@ -22,6 +22,7 @@ MPI_Comm STO_WORLD;
 MPI_Comm PARAPW_WORLD; // qianrui add it for sto-dft 2021-4-14
 MPI_Comm GRID_WORLD; // mohan add 2012-01-13z
 MPI_Comm DIAG_WORLD; // mohan add 2012-01-13
+MPI_Group GRID_GROUP;
 
 void Parallel_Global::myProd(std::complex<double> *in,std::complex<double> *inout,int *len,MPI_Datatype *dptr)
 {
@@ -80,6 +81,7 @@ void Parallel_Global::split_diag_world(const int &diag_np)
 	}
 
 	MPI_Comm_split(MPI_COMM_WORLD, color, key, &DIAG_WORLD);
+    MPI_Comm_group(DIAG_WORLD, &GRID_GROUP);
 	MPI_Comm_rank(DIAG_WORLD, &GlobalV::DRANK);
 	MPI_Comm_size(DIAG_WORLD, &GlobalV::DSIZE);
 	GlobalV::DCOLOR=color;

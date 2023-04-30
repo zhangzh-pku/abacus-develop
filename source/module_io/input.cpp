@@ -3356,6 +3356,10 @@ void Input::Check(void)
         {
             ModuleBase::WARNING_QUIT("Input", "lapack can not be used with plane wave basis.");
         }
+        else if (ks_solver == "pexsi")
+        {
+            ModuleBase::WARNING_QUIT("Input", "pexsi can not be used with plane wave basis.");
+        }
         else if (ks_solver != "default" && ks_solver != "cg" && ks_solver != "dav")
         {
             ModuleBase::WARNING_QUIT("Input", "please check the ks_solver parameter!");
@@ -3416,6 +3420,16 @@ void Input::Check(void)
 #ifndef __MPI
             ModuleBase::WARNING_QUIT("Input", "Cusolver can not be used for series version.");
 #endif
+        }
+        else if (ks_solver == "pexsi")
+        {
+#ifndef __MPI
+            ModuleBase::WARNING_QUIT("Input", "Cusolver can not be used for series version.");
+#else
+            GlobalV::ofs_warning << " It's ok to use pexsi." << std::endl;
+#endif
+
+
         }
         else if (ks_solver != "default")
         {

@@ -24,6 +24,7 @@ VPATH=./src_global:\
 ./module_hsolver:\
 ./module_hsolver/kernels:\
 ./module_hsolver/genelpa:\
+./module_hsolver/pexsi:\
 ./module_elecstate:\
 ./module_elecstate/kernels:\
 ./module_elecstate/potentials:\
@@ -238,6 +239,12 @@ OBJS_HSOLVER=diago_cg.o\
     diago_iter_assist.o\
     math_kernel_op.o\
     dngvd_op.o\
+    diago_pexsi.o\
+    DistBCDMatrix.o\
+    DistCCSMatrix.o\
+    DistMatrixTransformer.o\
+    pexsi_solver.o\
+    simplePEXSI.o\
 
 OBJS_HSOLVER_LCAO=hsolver_lcao.o\
       diago_blas.o\

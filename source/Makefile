@@ -138,6 +138,12 @@ ifdef LIBTORCH_DIR
   endif
 endif
 
+ifdef PEXSI_DIR
+    INCLUDES += -I${PEXSI_INCLUDE_DIR} ${SCOTCH_INCLUDE} ${DSUPERLU_INCLUDE}
+    LIBS += -L${PEXSI_LIB_DIR} -lpexsi_linux_release_v2.0 ${DSUPERLU_LIB} ${PTSCOTCH_LIB} ${SCOTCH_LIB}
+    HONG += -D__PEXSI
+endif
+
 ifdef DeePMD_DIR
     HONG  += -D__DPMD -DHIGH_PREC 
     OPTS  += -Wl,--no-as-needed

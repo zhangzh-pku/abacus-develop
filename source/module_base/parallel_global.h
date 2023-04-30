@@ -16,6 +16,7 @@ extern MPI_Comm STO_WORLD;
 extern MPI_Comm PARAPW_WORLD;
 extern MPI_Comm GRID_WORLD; //mohan add 2012-01-13
 extern MPI_Comm DIAG_WORLD; //mohan add 2012-01-13
+extern MPI_Group GRID_GROUP;
 #endif
 
 //void myProd(std::complex<double> *in,std::complex<double> *inout,int *len,MPI_Datatype *dptr);

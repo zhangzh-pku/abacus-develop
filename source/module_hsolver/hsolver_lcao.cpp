@@ -7,6 +7,7 @@
 #ifdef __ELPA
 #include "diago_elpa.h"
 #endif
+#include "diago_pexsi.h"
 
 namespace hsolver
 {
@@ -78,6 +79,23 @@ void HSolverLCAO::solveTemplate(hamilt::Hamilt<double>* pHamilt,
         }
         */
         ModuleBase::WARNING_QUIT("HSolverLCAO::solve", "This method of DiagH is not supported!");
+    }
+    else if (this->method == "pexsi")
+    {
+        if (pdiagh != nullptr)
+        {
+            if (pdiagh->method != this->method)
+            {
+                delete[] pdiagh;
+                pdiagh = nullptr;
+            }
+        }
+        if (pdiagh == nullptr)
+        {
+            DiagoPexsi* tem = new DiagoPexsi(this->ParaV);
+            this->pdiagh = tem;
+            pdiagh->method = this->method;
+        }
     }
     else
     {
