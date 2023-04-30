@@ -29,7 +29,7 @@ int Local_Orbital_Charge::setAlltoallvParameter(MPI_Comm comm_2D, int blacs_ctxt
 	int myproc=0;
 
     Cblacs_gridinfo(blacs_ctxt, &nprows, &npcols, &myprow, &mypcol);
-
+    std::cout << "testing" << "npcols:" << npcols << " nprows:" << nprows << endl;
     Cblacs_pinfo(&myproc, &nprocs);
     // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"nprocs",nprocs);
 
@@ -288,7 +288,7 @@ void Local_Orbital_Charge::gamma_file(psi::Psi<double>* psid, Local_Orbital_wfc 
 
     //allocate psi
     int ncol = this->ParaV->ncol_bands;
-    if(GlobalV::KS_SOLVER=="genelpa" || GlobalV::KS_SOLVER=="lapack_gvx" || GlobalV::KS_SOLVER == "scalapack_gvx"
+    if(GlobalV::KS_SOLVER=="genelpa" || GlobalV::KS_SOLVER=="lapack_gvx" || GlobalV::KS_SOLVER == "scalapack_gvx" || GlobalV::KS_SOLVER=="pexsi"
 #ifdef __CUSOLVER_LCAO
     ||GlobalV::KS_SOLVER=="cusolver"
 #endif

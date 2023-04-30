@@ -100,7 +100,7 @@ namespace ModuleESolver
             if(this->psid==nullptr)
             {
                 int ncol = this->LOWF.ParaV->ncol_bands;
-                if(GlobalV::KS_SOLVER=="genelpa" || GlobalV::KS_SOLVER=="lapack_gvx"
+                if(GlobalV::KS_SOLVER=="genelpa" || GlobalV::KS_SOLVER=="lapack_gvx" || GlobalV::KS_SOLVER=="pexsi"
 #ifdef __CUSOLVER_LCAO
                 ||GlobalV::KS_SOLVER=="cusolver"
 #endif

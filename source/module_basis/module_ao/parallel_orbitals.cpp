@@ -80,7 +80,7 @@ void ORB_control::set_trace(std::ofstream& ofs_running)
         pv->ncol = nlocal;
     }
 #ifdef __MPI
-    else if (ks_solver == "genelpa" || ks_solver == "scalapack_gvx" || ks_solver == "cusolver") // xiaohui add 2013-09-02
+    else if (ks_solver == "genelpa" || ks_solver == "scalapack_gvx" || ks_solver == "cusolver" || ks_solver == "pexsi") // xiaohui add 2013-09-02
     {
         // ofs_running << " nrow=" << nrow << std::endl;
         for (int irow = 0; irow < pv->nrow; irow++)
@@ -245,7 +245,7 @@ void ORB_control::divide_HS_2d(
     pv->nloc = pv->MatrixInfo.col_num * pv->MatrixInfo.row_num;
 
     // init blacs context for genelpa
-    if (ks_solver == "genelpa" || ks_solver == "scalapack_gvx" || ks_solver == "cusolver")
+    if (ks_solver == "genelpa" || ks_solver == "scalapack_gvx" || ks_solver == "cusolver" || ks_solver == "pexsi")
     {
         pv->blacs_ctxt = cart2blacs(pv->comm_2D,
                                     pv->dim0,
