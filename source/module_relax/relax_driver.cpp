@@ -29,7 +29,6 @@ void Relax_Driver::relax_driver(ModuleESolver::ESolver *p_esolver)
     while (istep <= GlobalV::RELAX_NMAX && !stop)
     {
         time_t estart = time(NULL);
-
         if (GlobalV::OUT_LEVEL == "ie"
             && (GlobalV::CALCULATION == "relax" || GlobalV::CALCULATION == "cell-relax" || GlobalV::CALCULATION == "scf"
                 || GlobalV::CALCULATION == "nscf"))
@@ -38,6 +37,7 @@ void Relax_Driver::relax_driver(ModuleESolver::ESolver *p_esolver)
         }
 
         // mohan added eiter to count for the electron iteration number, 2021-01-28
+        
         p_esolver->Run(istep - 1, GlobalC::ucell);
 
         time_t eend = time(NULL);
@@ -80,7 +80,6 @@ void Relax_Driver::relax_driver(ModuleESolver::ESolver *p_esolver)
                                          force_step,
                                          stress_step); // pengfei Li 2018-05-14
             }
-
             if (GlobalV::CALCULATION == "relax" || GlobalV::CALCULATION == "cell-relax")
             {
                 // print structure
@@ -99,10 +98,8 @@ void Relax_Driver::relax_driver(ModuleESolver::ESolver *p_esolver)
             }
         }
         time_t fend = time(NULL);
-
         ++istep;
     }
-
     if (GlobalV::OUT_LEVEL == "i")
     {
         std::cout << " ION DYNAMICS FINISHED :)" << std::endl;

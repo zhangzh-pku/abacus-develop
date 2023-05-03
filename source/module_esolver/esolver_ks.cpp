@@ -183,7 +183,6 @@ namespace ModuleESolver
         else
         {
             ModuleBase::timer::tick(this->classname, "Run");
-
             this->beforescf(istep); //Something else to do before the iter loop
             ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running, "INIT SCF");
             if(this->maxniter > 0)  this->printhead(); //print the headline on the screen.
@@ -199,10 +198,10 @@ namespace ModuleESolver
 #else
                 auto iterstart = std::chrono::system_clock::now();
 #endif
+                std::cout << "drho: " << drho << " iter: " << iter << std::endl;
                 FPTYPE diag_ethr = this->phsol->set_diagethr(istep, iter, drho);
                 eachiterinit(istep, iter);
                 this->hamilt2density(istep, iter, diag_ethr);
-                
                 //<Temporary> It may be changed when more clever parallel algorithm is put forward.
                 //When parallel algorithm for bands are adopted. Density will only be treated in the first group.
                 //(Different ranks should have abtained the same, but small differences always exist in practice.)
@@ -212,7 +211,6 @@ namespace ModuleESolver
                 {
                     // FPTYPE drho = this->estate.caldr2(); 
                     // EState should be used after it is constructed.
-
                     drho = GlobalC::CHR_MIX.get_drho(pelec->charge, GlobalV::nelec);
                     FPTYPE hsolver_error = 0.0;
                     if (firstscf)
@@ -278,16 +276,15 @@ namespace ModuleESolver
                 printiter(iter, drho, duration, diag_ethr);
                 if (this->conv_elec)
                 {
+                    std::cout << "this->conv_elec" << std::endl;
                     this->niter = iter;
                     bool stop = this->do_after_converge(iter);
-                    if(stop) break;
+                    if(stop) {std::cout << "break\n"; break;}
                 }
             }
             afterscf(istep);
-
             ModuleBase::timer::tick(this->classname, "Run");
         }       
-
         return;
     };
 

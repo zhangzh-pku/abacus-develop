@@ -383,6 +383,8 @@ int simplePEXSI(MPI_Comm comm_PEXSI, MPI_Comm comm_2D, MPI_Group group_2D, const
                 double& totalEnergyH, double& totalEnergyS, double& totalFreeEnergy)      // output energy
 {
     int out_log=0;
+    std::cout << "nrow: " << nrow << std::endl;
+    std::cout << "ncol: " << ncol << std::endl;
     if(out_log == 1)
     {
         std::stringstream ss;
@@ -614,6 +616,7 @@ int simplePEXSI(MPI_Comm comm_PEXSI, MPI_Comm comm_2D, MPI_Group group_2D, const
             if(myid<100) log_DM(DST_Matrix, DMnzvalLocal, f_log);
             #endif
         }
+        std::cout << "totalEnergyH:" << totalEnergyH << "\ntotalEnergyS:" << totalEnergyS << "\ntotalFreeEnergy:" << totalFreeEnergy << std::endl; 
         // clean PEXSI
         PPEXSIPlanFinalize(plan, &info);
         #ifdef _DEBUG

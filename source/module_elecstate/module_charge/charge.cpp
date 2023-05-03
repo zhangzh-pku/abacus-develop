@@ -293,7 +293,7 @@ double Charge::sum_rho(void) const
 			sum_rho += this->rho[is][ir];
 		}
 	}
-
+	std::cout << "sum_rho: " << sum_rho <<std::endl;
 	// multiply the sum of charge density by a factor
     sum_rho *= GlobalC::ucell.omega / static_cast<double>( GlobalC::rhopw->nxyz );
     Parallel_Reduce::reduce_double_pool( sum_rho );
@@ -313,7 +313,6 @@ double Charge::sum_rho(void) const
 void Charge::renormalize_rho(void)
 {
     ModuleBase::TITLE("Charge","renormalize_rho");
-
     const double sr = this->sum_rho();
 	GlobalV::ofs_warning << std::setprecision(15);
 	ModuleBase::GlobalFunc::OUT(GlobalV::ofs_warning,"charge before normalized",sr);
@@ -326,9 +325,7 @@ void Charge::renormalize_rho(void)
 			rho[is][ir] *= normalize_factor;
 		}
 	}
-
 	ModuleBase::GlobalFunc::OUT(GlobalV::ofs_warning,"charge after normalized",this->sum_rho());
-
 	GlobalV::ofs_running << std::setprecision(6);
     return;
 }

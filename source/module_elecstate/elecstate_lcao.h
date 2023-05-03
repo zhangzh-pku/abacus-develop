@@ -43,6 +43,9 @@ class ElecStateLCAO : public ElecState
     static int out_wfc_flag;
     static bool need_psi_grid;
 
+    //use for pexsi
+    void get_DM_from_pexsi(double* DM);
+
   protected:
     // calculate electronic charge density on grid points or density matrix in real space
     // the consequence charge density rho saved into rho_out, preparing for charge mixing.

@@ -519,7 +519,6 @@ void ESolver_KS_LCAO::hamilt2density(int istep, int iter, double ethr)
 {
     // save input rho
     pelec->charge->save_rho_before_sum_band();
-
     // using HSolverLCAO::solve()
     if (this->phsol != nullptr)
     {
@@ -537,7 +536,7 @@ void ESolver_KS_LCAO::hamilt2density(int istep, int iter, double ethr)
         {
             this->phsol->solve(this->p_hamilt, this->psid[0], this->pelec, GlobalV::KS_SOLVER);
         }
-
+        
         // transform energy for print
         GlobalC::en.eband = this->pelec->eband;
         GlobalC::en.demet = this->pelec->demet;
@@ -1242,7 +1241,7 @@ void ESolver_KS_LCAO::afterscf(const int istep)
 bool ESolver_KS_LCAO::do_after_converge(int& iter)
 {
 #ifdef __EXX
-
+    std::cout << "test exx" << std::endl;
     // Add EXX operator
     auto add_exx_operator = [&]() {
         if (GlobalV::GAMMA_ONLY_LOCAL)

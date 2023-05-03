@@ -253,6 +253,10 @@ void energy::print_etot(
 	{
         label = "CU";
 	}
+	else if(GlobalV::KS_SOLVER=="pexsi")
+	{
+		label = "PE";
+	}
 	else
 	{
 		ModuleBase::WARNING_QUIT("Energy","print_etot");

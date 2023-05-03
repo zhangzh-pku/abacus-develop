@@ -25,13 +25,13 @@ void ElecStateLCAO::psiToRho(const psi::Psi<std::complex<double>>& psi)
     // this part for calculating dm_k in 2d-block format, not used for charge now
     //    psi::Psi<std::complex<double>> dm_k_2d();
 
-    if (GlobalV::KS_SOLVER == "genelpa" || GlobalV::KS_SOLVER == "scalapack_gvx"
+    if (GlobalV::KS_SOLVER == "genelpa" || GlobalV::KS_SOLVER == "scalapack_gvx" ||  GlobalV::KS_SOLVER == "pexsi"
         || GlobalV::KS_SOLVER == "lapack") // Peize Lin test 2019-05-15
     {
         cal_dm(this->loc->ParaV, this->wg, psi, this->loc->dm_k);
     }
 
-    if (GlobalV::KS_SOLVER == "genelpa" || GlobalV::KS_SOLVER == "scalapack_gvx" || GlobalV::KS_SOLVER == "lapack")
+    if (GlobalV::KS_SOLVER == "genelpa" || GlobalV::KS_SOLVER == "scalapack_gvx" || GlobalV::KS_SOLVER == "lapack"  ||  GlobalV::KS_SOLVER == "pexsi")
     {
         for (int ik = 0; ik < psi.get_nk(); ik++)
         {
@@ -60,7 +60,6 @@ void ElecStateLCAO::psiToRho(const psi::Psi<std::complex<double>>& psi)
         Gint_inout inout1(this->loc->DM_R, this->charge, Gint_Tools::job_type::tau);
         this->uhm->GK.cal_gint(&inout1);
     }
-
     this->charge->renormalize_rho();
 
     ModuleBase::timer::tick("ElecStateLCAO", "psiToRho");
@@ -73,23 +72,26 @@ void ElecStateLCAO::psiToRho(const psi::Psi<double>& psi)
     ModuleBase::TITLE("ElecStateLCAO", "psiToRho");
     ModuleBase::timer::tick("ElecStateLCAO", "psiToRho");
 
-    this->calculate_weights();
-    this->calEBand();
+    if (GlobalV::KS_SOLVER != "pexsi") // pexsi useless
+    {
+        this->calculate_weights();
+        this->calEBand();
+    }
 
-    if (GlobalV::KS_SOLVER == "genelpa" || GlobalV::KS_SOLVER == "scalapack_gvx" || GlobalV::KS_SOLVER == "lapack")
+    if (GlobalV::KS_SOLVER == "genelpa" || GlobalV::KS_SOLVER == "scalapack_gvx" || GlobalV::KS_SOLVER == "lapack" || GlobalV::KS_SOLVER == "pexsi")
     {
         ModuleBase::timer::tick("ElecStateLCAO", "cal_dm_2d");
 
         // psi::Psi<double> dm_gamma_2d;
         //  caution:wfc and dm
-        cal_dm(this->loc->ParaV, this->wg, psi, this->loc->dm_gamma);
+        if (GlobalV::KS_SOLVER != "pexsi") cal_dm(this->loc->ParaV, this->wg, psi, this->loc->dm_gamma); // pexsi has done this
 
         ModuleBase::timer::tick("ElecStateLCAO", "cal_dm_2d");
 
         for (int ik = 0; ik < psi.get_nk(); ++ik)
         {
             // for gamma_only case, no convertion occured, just for print.
-            if (GlobalV::KS_SOLVER == "genelpa" || GlobalV::KS_SOLVER == "scalapack_gvx")
+            if (GlobalV::KS_SOLVER == "genelpa" || GlobalV::KS_SOLVER == "scalapack_gvx" || GlobalV::KS_SOLVER == "scalapack_gvx")
             {
                 psi.fix_k(ik);
                 this->print_psi(psi);
@@ -181,6 +183,11 @@ void ElecStateLCAO::print_psi(const psi::Psi<std::complex<double>>& psi_in)
     }
 
     return;
+}
+
+void ElecStateLCAO::get_DM_from_pexsi(double* DM)
+{
+    this->loc->dm_gamma[0].c = DM;
 }
 
 } // namespace elecstate

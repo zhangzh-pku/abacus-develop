@@ -81,6 +81,7 @@ class Local_Orbital_Charge
 
     std::map<Abfs::Vector3_Order<int>, std::map<size_t, std::map<size_t, double>>> DMR_sparse;
 
+
 private:
 
 	// whether the DM array has been allocated
