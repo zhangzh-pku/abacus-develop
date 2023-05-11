@@ -108,6 +108,23 @@ void ElecStateLCAO::psiToRho(const psi::Psi<double>& psi)
     //------------------------------------------------------------
     // calculate the charge density on real space grid.
     //------------------------------------------------------------
+    // print matrix zzh
+    // GlobalV::ofs_running << "dm_gamma print\n";
+    // for(int i=0; i< this->loc->dm_gamma[0].nc; i++)
+    // {
+    //     for(int j=0; j<this->loc->dm_gamma[0].nr; j++)
+    //     {
+    //         if (std::abs(this->loc->dm_gamma[0](i, j)) < 0.00000001)
+    //         {
+    //             GlobalV::ofs_running << "0 ";
+    //         }
+    //         else
+    //         {
+    //             GlobalV::ofs_running << this->loc->dm_gamma[0](i, j) << " ";
+    //         }
+    //     }
+    //     GlobalV::ofs_running << std::endl;
+    // }
     ModuleBase::GlobalFunc::NOTE("Calculate the charge on real space grid!");
     Gint_inout inout(this->loc->DM, this->charge, Gint_Tools::job_type::rho);
     this->uhm->GG.cal_gint(&inout);
@@ -185,8 +202,9 @@ void ElecStateLCAO::print_psi(const psi::Psi<std::complex<double>>& psi_in)
     return;
 }
 
-void ElecStateLCAO::get_DM_from_pexsi(double* DM)
+void ElecStateLCAO::get_DM_from_pexsi(double* DM, const Parallel_Orbitals* ParaV)
 {
+    this->loc->dm_gamma[0].create(ParaV->ncol, ParaV->nrow);
     this->loc->dm_gamma[0].c = DM;
 }
 

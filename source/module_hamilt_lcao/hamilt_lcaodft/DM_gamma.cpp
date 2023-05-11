@@ -29,7 +29,6 @@ int Local_Orbital_Charge::setAlltoallvParameter(MPI_Comm comm_2D, int blacs_ctxt
 	int myproc=0;
 
     Cblacs_gridinfo(blacs_ctxt, &nprows, &npcols, &myprow, &mypcol);
-    std::cout << "testing" << "npcols:" << npcols << " nprows:" << nprows << endl;
     Cblacs_pinfo(&myproc, &nprocs);
     // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"nprocs",nprocs);
 
@@ -338,7 +337,6 @@ void Local_Orbital_Charge::gamma_file(psi::Psi<double>* psid, Local_Orbital_wfc 
 void Local_Orbital_Charge::cal_dk_gamma_from_2D_pub(void)
 {
     ModuleBase::TITLE("Local_Orbital_Charge","cal_dk_gamma_from_2D_pub");
-
 	cal_dk_gamma_from_2D();
 }
 // calculate the grid distributed DM matrix from 2D block-cyclic distributed DM matrix

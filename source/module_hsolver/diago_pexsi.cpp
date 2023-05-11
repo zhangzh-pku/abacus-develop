@@ -39,7 +39,6 @@ void DiagoPexsi::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<double>& psi, dou
     this->totalFreeEnergy = this->ps->totalFreeEnergy;
     this->totalEnergyH = this->ps->totalEnergyH;
     this->totalEnergyS = this->ps->totalEnergyS;
-    std::cout << "this->totalEnergyH: " << this->ps->totalEnergyH << std::endl << "this->totalEnergyS: " << this->ps->totalEnergyS << std::endl << "this->totalFreeEnergy" << this->ps->totalFreeEnergy << std::endl;
 }
 void DiagoPexsi::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<std::complex<double>>& psi, double* eigenvalue_in)
 {

@@ -5,7 +5,7 @@ include Makefile.vars
 #==========================
 INCLUDES = -I. -Icommands -I../
 LIBS = -lm -lpthread
-OPTS = -std=c++14 -pedantic -m64 ${INCLUDES}
+OPTS = ${INCLUDES} -Ofast -g -traceback -xHost -std=c++11 -simd -march=native -m64 -qopenmp -Werror -Wall -pedantic 
 HONG = -D__LCAO
 HONG += -D__ELPA
 ifeq ($(OPENMP), ON)
@@ -43,7 +43,7 @@ ifeq ($(DEBUG), ON)
     endif
     OPTS += -O0 -fsanitize=address -fno-omit-frame-pointer -Wall -g #It can check segmental defaults
 else
-    HONG += -Ofast -march=native -DNDEBUG
+    HONG += -O0 -march=native -DNDEBUG
 endif
 
 ifeq ($(INTEL), ON)
@@ -73,7 +73,7 @@ else
     FFTW_INCLUDE_DIR = ${FFTW_DIR}/include
     FFTW_LIB_DIR     = ${FFTW_DIR}/lib
     HONG  += -D__FFTW3
-    LIBS += -L${FFTW_LIB_DIR} -lfftw3 -Wl,-rpath=${FFTW_LIB_DIR}
+    LIBS += -L${FFTW_LIB_DIR} -lfftw3 -Wl,-rpath=${FFTW_LIB_DIR} -qmkl
     INCLUDES += -I${FFTW_INCLUDE_DIR}
     
     #==========================

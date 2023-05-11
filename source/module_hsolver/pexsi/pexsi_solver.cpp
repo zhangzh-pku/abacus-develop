@@ -1,10 +1,11 @@
 #include "pexsi_solver.h"
 
-#include "module_base/global_variable.h"
-#include "simplePEXSI.h"
+#include <mpi.h>
 
 #include <cstring>
-#include <mpi.h>
+
+#include "module_base/global_variable.h"
+#include "simplePEXSI.h"
 
 PEXSI_Solver::PEXSI_Solver(const int blacs_text,
                            const int nb,
@@ -38,22 +39,23 @@ int PEXSI_Solver::solve()
     extern MPI_Comm DIAG_WORLD;
     extern MPI_Comm GRID_WORLD;
     extern MPI_Group GRID_GROUP;
-    return simplePEXSI(MPI_COMM_WORLD,
-                       MPI_COMM_WORLD,
-                       GRID_GROUP,
-                       this->blacs_text,
-                       GlobalV::NLOCAL,
-                       this->nb,
-                       this->nrow,
-                       this->ncol,
-                       'C',
-                       this->h,
-                       this->s,
-                       GlobalV::nelec,
-                       "PEXSIOPTION",
-                       this->DM,
-                       this->EDM,
-                       this->totalEnergyH,
-                       this->totalEnergyS,
-                       this->totalFreeEnergy);
+    simplePEXSI(DIAG_WORLD,
+                GRID_WORLD,
+                GRID_GROUP,
+                this->blacs_text,
+                GlobalV::NLOCAL,
+                this->nb,
+                this->nrow,
+                this->ncol,
+                'C',
+                this->h,
+                this->s,
+                GlobalV::nelec,
+                "PEXSIOPTION",
+                this->DM,
+                this->EDM,
+                this->totalEnergyH,
+                this->totalEnergyS,
+                this->totalFreeEnergy);
+    return 0;
 }

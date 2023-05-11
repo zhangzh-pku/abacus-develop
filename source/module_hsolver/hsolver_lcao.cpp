@@ -144,7 +144,7 @@ void HSolverLCAO::solveTemplate(hamilt::Hamilt<double>* pHamilt,
         if (tem==nullptr) ModuleBase::WARNING_QUIT("HSolverLCAO", "pexsi need debug!");
         elecstate::ElecStateLCAO* _pes = dynamic_cast<elecstate::ElecStateLCAO*>(pes);
         pes->eband = tem->totalFreeEnergy;
-        _pes->get_DM_from_pexsi(tem->DM);
+        _pes->get_DM_from_pexsi(tem->DM, tem->ParaV);
     }
     pes->psiToRho(psi);
     ModuleBase::timer::tick("HSolverLCAO", "solve");

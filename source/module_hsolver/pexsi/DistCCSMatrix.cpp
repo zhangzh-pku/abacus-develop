@@ -91,6 +91,7 @@ int DistCCSMatrix::localCol(int globalCol, int& mypcol)
 {
     mypcol=int(globalCol/int(this->size/this->nproc_data));
     if(mypcol >= this->nproc_data) mypcol=this->nproc_data-1;
+    
     return mypcol>0 ? globalCol-(this->size/this->nproc_data)*mypcol : globalCol;
 }
 

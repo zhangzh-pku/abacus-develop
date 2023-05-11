@@ -293,7 +293,6 @@ double Charge::sum_rho(void) const
 			sum_rho += this->rho[is][ir];
 		}
 	}
-	std::cout << "sum_rho: " << sum_rho <<std::endl;
 	// multiply the sum of charge density by a factor
     sum_rho *= GlobalC::ucell.omega / static_cast<double>( GlobalC::rhopw->nxyz );
     Parallel_Reduce::reduce_double_pool( sum_rho );

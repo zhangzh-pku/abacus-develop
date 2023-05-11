@@ -142,6 +142,7 @@ int DistBCDMatrix::globalRow(const int localRow)
 
 int DistBCDMatrix::globalCol(const int localCol)
 {
+    
     return (localCol/nblk*npcols+mypcol)*nblk+localCol%nblk;
 }
 

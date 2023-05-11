@@ -198,7 +198,6 @@ namespace ModuleESolver
 #else
                 auto iterstart = std::chrono::system_clock::now();
 #endif
-                std::cout << "drho: " << drho << " iter: " << iter << std::endl;
                 FPTYPE diag_ethr = this->phsol->set_diagethr(istep, iter, drho);
                 eachiterinit(istep, iter);
                 this->hamilt2density(istep, iter, diag_ethr);
