@@ -1,3 +1,6 @@
+#ifndef SIMPLE_PEXSI_H
+#define SIMPLE_PEXSI_H
+
 #include <mpi.h>
 // a simple interface for calling pexsi with 2D block cyclic distributed matrix
 int simplePEXSI(MPI_Comm comm_PEXSI, MPI_Comm comm_2D, MPI_Group group_2D, const int blacs_ctxt,  // communicator parameters
@@ -6,3 +9,5 @@ int simplePEXSI(MPI_Comm comm_PEXSI, MPI_Comm comm_2D, MPI_Group group_2D, const
                 const double nElectronExact, const std::string PexsiOptionFile,        // pexsi parameters file
                 double*& DM, double*& EDM,      // output matrices
                 double& totalEnergyH, double& totalEnergyS, double& totalFreeEnergy);
+
+#endif // SIMPLE_PEXSI_H

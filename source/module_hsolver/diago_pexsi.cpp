@@ -1,3 +1,4 @@
+#include <complex>
 #ifdef __PEXSI
 #include "diago_pexsi.h"
 
@@ -15,7 +16,8 @@ typedef hamilt::MatrixBlock<std::complex<double>> matcd;
 namespace hsolver
 {
 
-void DiagoPexsi::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<double>& psi, double* eigenvalue_in)
+template<>
+void DiagoPexsi<double>::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<double>& psi, double* eigenvalue_in)
 {
     ModuleBase::TITLE("DiagoPEXSI", "diag");
     matd h_mat, s_mat;
@@ -40,7 +42,9 @@ void DiagoPexsi::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<double>& psi, dou
     this->totalEnergyH = this->ps->totalEnergyH;
     this->totalEnergyS = this->ps->totalEnergyS;
 }
-void DiagoPexsi::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<std::complex<double>>& psi, double* eigenvalue_in)
+
+template<>
+void DiagoPexsi<std::complex<double>>::diag(hamilt::Hamilt<std::complex<double>>* phm_in, psi::Psi<std::complex<double>>& psi, double* eigenvalue_in)
 {
     ModuleBase::TITLE("DiagoPEXSI", "diag");
     ModuleBase::WARNING_QUIT("DiagoPEXSI", "PEXSI is not completed for multi-k case");

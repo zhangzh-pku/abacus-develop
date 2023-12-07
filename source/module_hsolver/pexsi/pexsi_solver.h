@@ -1,5 +1,6 @@
 #ifndef PEXSI_Solver_H
 #define PEXSI_Solver_H
+
 class PEXSI_Solver
 {
   public:
@@ -27,4 +28,5 @@ class PEXSI_Solver
     double totalEnergyS;
     double totalFreeEnergy;
 };
-#endif
+
+#endif // PEXSI_Solver_H

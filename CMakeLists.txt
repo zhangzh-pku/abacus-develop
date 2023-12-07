@@ -10,6 +10,11 @@ project(ABACUS
     LANGUAGES CXX
 )
 
+# private options, should not be pushed to master
+set(PEXSI_DIR "~/projects/pexsi-build/pexsi")
+set(SuperLU_DIR "~/projects/pexsi-build/superlu")
+set(ParMETIS_DIR "~/projects/pexsi-build/parmetis")
+
 option(ENABLE_LCAO "Enable LCAO calculation." ON)
 option(ENABLE_DEEPKS "Enable DeePKS functionality" OFF)
 option(ENABLE_LIBXC "Enable LibXC functionality" OFF)

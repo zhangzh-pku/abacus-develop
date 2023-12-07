@@ -1,3 +1,7 @@
+#ifndef DISTBCDMATRIX_H
+#define DISTBCDMATRIX_H
+
+#include <mpi.h>
 // a Block Cyclic Data Distribution matrix
 // http://www.netlib.org/utk/papers/factor/node3.html
 // local matrix elements is stored in column major
@@ -61,3 +65,5 @@ class DistBCDMatrix {
         // 'C' or 'c' for column-major, which is used in Fortran
         char LAYOUT;
 };
+
+#endif // DISTBCDMATRIX_H

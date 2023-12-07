@@ -81,23 +81,26 @@ void HSolverLCAO<T>::solveTemplate(hamilt::Hamilt<T>* pHamilt,
         */
         ModuleBase::WARNING_QUIT("HSolverLCAO::solve", "This method of DiagH is not supported!");
     }
+#ifdef __PEXSI
     else if (this->method == "pexsi")
     {
-        if (pdiagh != nullptr)
+        if (this->pdiagh != nullptr)
         {
-            if (pdiagh->method != this->method)
+            if (this->pdiagh->method != this->method)
             {
-                delete[] pdiagh;
-                pdiagh = nullptr;
+                delete[] this->pdiagh;
+                this->pdiagh = nullptr;
             }
         }
-        if (pdiagh == nullptr)
+        if (this->pdiagh == nullptr)
         {
-            DiagoPexsi* tem = new DiagoPexsi(this->ParaV);
+            DiagoPexsi<T>* tem = new DiagoPexsi<T>(this->ParaV);
             this->pdiagh = tem;
-            pdiagh->method = this->method;
+            // this->pdiagh = dynamic_cast<DiagoPexsi<T>*>(tem);
+            this->pdiagh->method = this->method;
         }
     }
+#endif
     else
     {
         ModuleBase::WARNING_QUIT("HSolverLCAO::solve", "This method of DiagH is not supported!");
@@ -140,10 +143,10 @@ void HSolverLCAO<T>::solveTemplate(hamilt::Hamilt<T>* pHamilt,
     // called in scf calculation
     if (this->method == "pexsi")
     {
-        DiagoPexsi* tem = dynamic_cast<DiagoPexsi*>(this->pdiagh);
+        DiagoPexsi<T>* tem = dynamic_cast<DiagoPexsi<T>*>(this->pdiagh);
         if (tem==nullptr) ModuleBase::WARNING_QUIT("HSolverLCAO", "pexsi need debug!");
-        elecstate::ElecStateLCAO* _pes = dynamic_cast<elecstate::ElecStateLCAO*>(pes);
-        pes->eband = tem->totalFreeEnergy;
+        elecstate::ElecStateLCAO<T>* _pes = dynamic_cast<elecstate::ElecStateLCAO<T>*>(pes);
+        pes->f_en.eband = tem->totalFreeEnergy;
         _pes->get_DM_from_pexsi(tem->DM, tem->ParaV);
     }
     pes->psiToRho(psi);

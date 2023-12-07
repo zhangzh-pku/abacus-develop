@@ -423,7 +423,7 @@ namespace ModuleESolver
                 double duration = (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - iterstart)).count() / static_cast<double>(1e6);
 #endif
                 printiter(iter, drho, duration, diag_ethr);
-                if (this->conv_elec)
+                if (this->conv_elec && iter >= 5)
                 {
                     std::cout << "this->conv_elec" << std::endl;
                     this->niter = iter;

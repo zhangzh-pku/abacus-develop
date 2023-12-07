@@ -205,7 +205,7 @@ void ORB_control::setup_2d_division(std::ofstream& ofs_running,
     bool div_2d;
     if (ks_solver == "lapack" || ks_solver == "cg" || ks_solver == "dav") div_2d = false;
 #ifdef __MPI
-    else if (ks_solver == "genelpa" || ks_solver == "scalapack_gvx" || ks_solver == "cusolver") div_2d = true;
+    else if (ks_solver == "genelpa" || ks_solver == "scalapack_gvx" || ks_solver == "cusolver" || ks_solver == "pexsi") div_2d = true;
 #endif
     else
     {
@@ -382,7 +382,7 @@ assert(nb2d > 0);
     }
 
     // init blacs context for genelpa
-    if (ks_solver == "genelpa" || ks_solver == "scalapack_gvx" || ks_solver == "cusolver")
+    if (ks_solver == "genelpa" || ks_solver == "scalapack_gvx" || ks_solver == "cusolver" || ks_solver == "pexsi")
     {
         pv->set_desc(nlocal, nlocal, pv->nrow);
         pv->set_desc_wfc_Eij(nlocal, nbands, pv->nrow);

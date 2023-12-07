@@ -181,6 +181,7 @@ void ElecStateLCAO<double>::psiToRho(const psi::Psi<double>& psi)
             //cal_dm(this->loc->ParaV, this->wg, psi, this->loc->dm_gamma);
             elecstate::cal_dm_psi(this->DM->get_paraV_pointer(), this->wg, psi, *(this->DM));
             this->DM->cal_DMR();
+
             if (this->loc->out_dm) // keep interface for old Output_DM until new one is ready
             {
                 this->loc->dm_gamma.resize(GlobalV::NSPIN);
@@ -189,7 +190,11 @@ void ElecStateLCAO<double>::psiToRho(const psi::Psi<double>& psi)
                     this->loc->set_dm_gamma(is, this->DM->get_DMK_pointer(is));
                 }
             }
+
         }
+
+        
+
         ModuleBase::timer::tick("ElecStateLCAO", "cal_dm_2d");
 
         for (int ik = 0; ik < psi.get_nk(); ++ik)
@@ -273,13 +278,23 @@ double ElecStateLCAO<std::complex<double>>::get_spin_constrain_energy()
     return sc.cal_escon();
 }
 
-template class ElecStateLCAO<double>; // Gamma_only case
-template class ElecStateLCAO<std::complex<double>>; // multi-k case
-
-void ElecStateLCAO::get_DM_from_pexsi(double* DM, const Parallel_Orbitals* ParaV)
+template<>
+void ElecStateLCAO<double>::get_DM_from_pexsi(double* DM, const Parallel_Orbitals* ParaV)
 {
     this->loc->dm_gamma[0].create(ParaV->ncol, ParaV->nrow);
     this->loc->dm_gamma[0].c = DM;
+    this->loc->out_dm = 1;
 }
+
+template<>
+void ElecStateLCAO<std::complex<double>>::get_DM_from_pexsi(double* DM, const Parallel_Orbitals* ParaV)
+{
+    ModuleBase::WARNING_QUIT("ElecStateLCAO", "pexsi is not completed for multi-k case");
+}
+
+template class ElecStateLCAO<double>; // Gamma_only case
+template class ElecStateLCAO<std::complex<double>>; // multi-k case
+
+
 
 } // namespace elecstate

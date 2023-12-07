@@ -1,3 +1,8 @@
+#ifndef DISTMATRIXTRANSFORMER_H
+#define DISTMATRIXTRANSFORMER_H
+
+#include "DistBCDMatrix.h"
+#include "DistCCSMatrix.h"
 // transform a sparse matrix from block cyclic distribution (BCD) to Compressed Column Storage (CCS) distribution
 // they should have same MPI communicator
 // The local matrix of BCD is column-major order
@@ -18,3 +23,4 @@ int transformBCDtoCCS(DistBCDMatrix &SRC_Matrix, double* H_2d, double* S_2d, con
 int transformCCStoBCD(DistCCSMatrix& SRC_Matrix, double* DMnzvalLocal, double* ENDnzvalLocal,
                     DistBCDMatrix& DST_Matrix, double* DM_2d, double* END_2d);
 
+#endif // DISTMATRIXTRANSFORMER_H

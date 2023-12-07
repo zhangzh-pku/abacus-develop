@@ -1,3 +1,7 @@
+#ifndef DISTCCSMATRIX_H
+#define DISTCCSMATRIX_H
+
+#include <mpi.h>
 // Distributed Compressed Column Storage Matrix format
 // used for PEXSI
 class DistCCSMatrix {
@@ -44,3 +48,4 @@ class DistCCSMatrix {
         int* rowindLocal;
 };
 
+#endif // DISTCCSMATRIX_H
