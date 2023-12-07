@@ -12,7 +12,7 @@
 #include "module_hamilt_lcao/hamilt_lcaodft/LCAO_hamilt.h"
 #include "module_psi/psi.h"
 #include "module_elecstate/elecstate.h"
-
+#include "module_hamilt_lcao/hamilt_lcaodft/DM_gamma_2d_to_grid.h"
 class Local_Orbital_Charge
 {
 	public:
@@ -21,16 +21,20 @@ class Local_Orbital_Charge
 	~Local_Orbital_Charge();
 
 	// mohan added 2021-02-08
-    void allocate_dm_wfc(const int& lgd,
+    void allocate_dm_wfc(const Grid_Technique& gt,
         elecstate::ElecState* pelec,
         Local_Orbital_wfc &lowf,
-        psi::Psi<double>* psid,
-        psi::Psi<std::complex<double>>* psi);
-
+        psi::Psi<double>* psi,
+        const K_Vectors& kv);
+    void allocate_dm_wfc(const Grid_Technique& gt,
+        elecstate::ElecState* pelec,
+        Local_Orbital_wfc& lowf,
+        psi::Psi<std::complex<double>>* psi,
+        const K_Vectors& kv);
 	//-----------------
 	// in DM_gamma.cpp
 	//-----------------
-	void allocate_gamma(const int &lgd, psi::Psi<double>* psid, elecstate::ElecState* pelec);
+	void allocate_gamma(const int &lgd, psi::Psi<double>* psid, elecstate::ElecState* pelec, const int& nks);
 
     void gamma_file(psi::Psi<double>* psid, Local_Orbital_wfc &lowf, elecstate::ElecState* pelec);
     void cal_dk_gamma_from_2D_pub(void);
@@ -38,7 +42,7 @@ class Local_Orbital_Charge
 	//-----------------
 	// in DM_k.cpp
 	//-----------------
-	void allocate_DM_k(void);
+	void allocate_DM_k(const int& nks, const int& nnrg);
 
 	// liaochen modify on 2010-3-23 
 	// change its state from private to public
@@ -59,13 +63,14 @@ class Local_Orbital_Charge
     // use the original formula (Hamiltonian matrix) to calculate energy density matrix	
     std::vector<ModuleBase::ComplexMatrix> edm_k_tddft;
 
-    void init_dm_2d(void);
+    void init_dm_2d(const int& nks);
     
     // dm(R) = wfc.T * wg * wfc.conj()*kphase, only used in multi-k 
     void cal_dm_R(
         std::vector<ModuleBase::ComplexMatrix>& dm_k,
         Record_adj& ra,
-        double** dm2d);     //output, dm2d[NSPIN][LNNR]
+        double** dm2d,
+        const K_Vectors& kv);     //output, dm2d[NSPIN][LNNR]
 
     //-----------------
 	// wavefunctions' pointer
@@ -77,10 +82,12 @@ class Local_Orbital_Charge
     const Parallel_Orbitals* ParaV;
 
     //temporary set it to public for ElecStateLCAO class, would be refactor later
-    void cal_dk_k(const Grid_Technique &gt, const ModuleBase::matrix& wg_in);
+    void cal_dk_k(const Grid_Technique &gt, const ModuleBase::matrix& wg_in, const K_Vectors& kv);
 
     std::map<Abfs::Vector3_Order<int>, std::map<size_t, std::map<size_t, double>>> DMR_sparse;
 
+    void set_dm_k(int ik, std::complex<double>* dm_k_in); // set dm_k from a pointer
+    void set_dm_gamma(int is, double* dm_gamma_in); // set dm_gamma from a pointer
 
 private:
 
@@ -99,26 +106,10 @@ private:
 	// add by yshen on 9/22/2014
 	// these variables are memory pool for DM series matrixes, 
 	// so that these matrixes will be storaged continuously in the memory.
-	double **DM_pool;
-	
-	// Buffer parameters for tranforming 2D block-cyclic distributed DM matrix 
-	// to grid distributed DM matrix
-    int *sender_2D_index;
-    int sender_size;
-    int *sender_size_process;
-    int *sender_displacement_process;
-    double* sender_buffer;
+    double** DM_pool;
 
-    int *receiver_local_index;
-    int receiver_size;
-    int *receiver_size_process;
-    int *receiver_displacement_process;
-    double* receiver_buffer;
+    DMgamma_2dtoGrid dm2g;
 
-#ifdef __MPI
-    int setAlltoallvParameter(MPI_Comm comm_2D, int blacs_ctxt, int nblk);
-#endif
-    void cal_dk_gamma_from_2D(void);
 };
 
 #endif

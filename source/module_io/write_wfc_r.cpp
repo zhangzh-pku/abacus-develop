@@ -4,25 +4,31 @@
 //======================
 
 #include "write_wfc_r.h"
-#include "module_hamilt_pw/hamilt_pwdft/global.h"
-#include "module_base/tool_title.h"
-#include "module_base/timer.h"
+
+#include <cstdlib>
 #include <fstream>
 #include <stdexcept>
-#include <cstdlib>
+
+#include "module_base/timer.h"
+#include "module_base/tool_title.h"
+#include "module_hamilt_pw/hamilt_pwdft/global.h"
 
 namespace ModuleIO
 {
 	// write ||wfc_r|| for all k-points and all bands
 	// Input: wfc_g(ik, ib, ig)
 	// loop order is for(z){for(y){for(x)}}
-	void write_psi_r_1(const psi::Psi<std::complex<double>> &wfc_g, const std::string &folder_name, const bool& square)
-	{
-		ModuleBase::TITLE("ModuleIO", "write_psi_r_1");
-		ModuleBase::timer::tick("ModuleIO", "write_psi_r_1");
+void write_psi_r_1(const psi::Psi<std::complex<double>>& wfc_g,
+                   const ModulePW::PW_Basis_K* wfcpw,
+                   const std::string& folder_name,
+                   const bool& square,
+                   const K_Vectors& kv)
+{
+    ModuleBase::TITLE("ModuleIO", "write_psi_r_1");
+    ModuleBase::timer::tick("ModuleIO", "write_psi_r_1");
 
-		const std::string outdir = GlobalV::global_out_dir + folder_name + "/";
-		ModuleBase::GlobalFunc::MAKE_DIR(outdir);
+    const std::string outdir = GlobalV::global_out_dir + folder_name + "/";
+    ModuleBase::GlobalFunc::MAKE_DIR(outdir);
 #ifdef __MPI
 		std::vector<MPI_Request> mpi_requests;
 #endif
@@ -31,10 +37,10 @@ namespace ModuleIO
 			wfc_g.fix_k(ik);
 			const int ik_out = (GlobalV::NSPIN!=2)
 				? ik + GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL]
-				: ik - GlobalC::kv.nks/2*GlobalC::kv.isk[ik] + GlobalC::kv.nkstot/2*GlobalC::kv.isk[ik] + GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL];
+				: ik - kv.nks/2*kv.isk[ik] + kv.nkstot/2*kv.isk[ik] + GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL];
 			for(int ib=0; ib<wfc_g.get_nbands(); ++ib)
 			{
-				const std::vector<std::complex<double>> wfc_r = cal_wfc_r(wfc_g, ik, ib);
+				const std::vector<std::complex<double>> wfc_r = cal_wfc_r(wfcpw, wfc_g, ik, ib);
 
                 std::vector<double> wfc_r2(wfc_r.size());
                 std::vector<double> wfc_i2;
@@ -55,11 +61,11 @@ namespace ModuleIO
 					+ "_" + ModuleBase::GlobalFunc::TO_STRING(ib);
 #ifdef __MPI
 				mpi_requests.push_back({});
-                write_chg_r_1(wfc_r2, file_name, mpi_requests.back());
+                write_chg_r_1(wfcpw, wfc_r2, file_name, mpi_requests.back());
                 if (!square)
-                    write_chg_r_1(wfc_i2, file_name + "_imag", mpi_requests.back());
+                    write_chg_r_1(wfcpw, wfc_i2, file_name + "_imag", mpi_requests.back());
 #else
-                write_chg_r_1(wfc_r2, file_name);
+                write_chg_r_1(wfcpw, wfc_r2, file_name);
                 //if (!square)
                     //write_chg_r_1(wfc_i2, file_name + "_imag", mpi_requests.back());
 #endif
@@ -70,38 +76,42 @@ namespace ModuleIO
 #endif
 		ModuleBase::timer::tick("ModuleIO", "write_psi_r_1");
 	}
-	// processes output pipeline:
-	//
-	//           t0  t1  t2  t3  t4  t5  t6  t7
-	//          -------------------------------->
-	//  rank0    k0  k1  k2  k3  k4  k5
-	//             \   \   \   \   \   \
-	//  rank1        k0  k1  k2  k3  k4  k5
-	//                 \   \   \   \   \   \
-	//  rank2            k0  k1  k2  k3  k4  k5
+    // processes output pipeline:
+    //
+    //           t0  t1  t2  t3  t4  t5  t6  t7
+    //          -------------------------------->
+    //  rank0    k0  k1  k2  k3  k4  k5
+    //             \   \   \   \   \   \
+    //  rank1        k0  k1  k2  k3  k4  k5
+    //                 \   \   \   \   \   \
+    //  rank2            k0  k1  k2  k3  k4  k5
 
+    // Input: wfc_g(ib,ig)
+    // Output: wfc_r[ir]
+    std::vector<std::complex<double>> cal_wfc_r(const ModulePW::PW_Basis_K* wfcpw,
+                                                const psi::Psi<std::complex<double>>& wfc_g,
+                                                const int ik,
+                                                const int ib)
+    {
+        ModuleBase::timer::tick("ModuleIO", "cal_wfc_r");
 
+        std::vector<std::complex<double>> wfc_r(wfcpw->nrxx);
+        wfcpw->recip2real(&wfc_g(ib, 0), wfc_r.data(), ik);
 
-	// Input: wfc_g(ib,ig)
-	// Output: wfc_r[ir]
-	std::vector<std::complex<double>> cal_wfc_r(const psi::Psi<std::complex<double>> &wfc_g, const int ik, const int ib)
-	{
-		ModuleBase::timer::tick("ModuleIO", "cal_wfc_r");
+        ModuleBase::timer::tick("ModuleIO", "cal_wfc_r");
+        return wfc_r;
+    }
 
-		std::vector<std::complex<double>> wfc_r(GlobalC::wfcpw->nrxx);
-		GlobalC::wfcpw->recip2real(&wfc_g(ib,0), wfc_r.data(),ik);
-
-		ModuleBase::timer::tick("ModuleIO", "cal_wfc_r");
-		return wfc_r;
-	}
-
-
-
-	// Input: chg_r[ir]
-#ifdef  __MPI
-	void write_chg_r_1(const std::vector<double> &chg_r, const std::string &file_name, MPI_Request &mpi_request)
+    // Input: chg_r[ir]
+#ifdef __MPI
+    void write_chg_r_1(const ModulePW::PW_Basis_K* wfcpw,
+                       const std::vector<double>& chg_r,
+                       const std::string& file_name,
+                       MPI_Request& mpi_request)
 #else
-	void write_chg_r_1(const std::vector<double> &chg_r, const std::string &file_name)
+    void write_chg_r_1(const ModulePW::PW_Basis_K* wfcpw,
+                       const std::vector<double>& chg_r,
+                       const std::string& file_name)
 #endif
 	{
 		ModuleBase::timer::tick("ModuleIO", "write_chg_r_1");
@@ -133,7 +143,7 @@ namespace ModuleIO
 					ofs<<GlobalC::ucell.atoms[it].taud[ia].x<<" "<<GlobalC::ucell.atoms[it].taud[ia].y<<" "<<GlobalC::ucell.atoms[it].taud[ia].z<<std::endl;
 			ofs<<std::endl;
 
-			ofs<<GlobalC::wfcpw->nx<<" "<<GlobalC::wfcpw->ny<<" "<<GlobalC::wfcpw->nz<<std::endl;
+			ofs<<wfcpw->nx<<" "<<wfcpw->ny<<" "<<wfcpw->nz<<std::endl;
 #ifdef  __MPI
 		}
 		else
@@ -141,18 +151,18 @@ namespace ModuleIO
 			char recv_tmp;
 			MPI_Recv( &recv_tmp, 1, MPI_CHAR, GlobalV::RANK_IN_POOL-1, mpi_tag, POOL_WORLD, MPI_STATUS_IGNORE);
 
-			ofs.open(file_name, ofstream::app);
+			ofs.open(file_name, std::ofstream::app);
 		}
 #endif
 
-		assert(GlobalC::wfcpw->nx * GlobalC::wfcpw->ny * GlobalC::wfcpw->nplane == chg_r.size());
-		for(int iz=0; iz<GlobalC::wfcpw->nplane; ++iz)
+		assert(wfcpw->nx * wfcpw->ny * wfcpw->nplane == chg_r.size());
+		for(int iz=0; iz<wfcpw->nplane; ++iz)
 		{
-			for(int iy=0; iy<GlobalC::wfcpw->ny; ++iy)
+			for(int iy=0; iy<wfcpw->ny; ++iy)
 			{
-				for(int ix=0; ix<GlobalC::wfcpw->nx; ++ix)
+				for(int ix=0; ix<wfcpw->nx; ++ix)
 				{
-					const int ir = (ix*GlobalC::wfcpw->ny+iy)*GlobalC::wfcpw->nplane+iz;
+					const int ir = (ix*wfcpw->ny+iy)*wfcpw->nplane+iz;
 					ofs<<chg_r[ir]<<" ";
 				}
 				ofs<<"\n";

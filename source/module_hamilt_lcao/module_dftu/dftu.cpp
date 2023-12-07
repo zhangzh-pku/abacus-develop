@@ -10,7 +10,6 @@
 #include "module_base/memory.h"
 #include "module_base/timer.h"
 #include "module_basis/module_ao/ORB_gen_tables.h"
-#include "module_hamilt_lcao/hamilt_lcaodft/global_fp.h"
 #include "module_elecstate/module_charge/charge.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 #include "module_elecstate/magnetism.h"
@@ -42,7 +41,8 @@ DFTU::~DFTU()
 }
 
 void DFTU::init(UnitCell& cell, // unitcell class
-                LCAO_Matrix& lm)
+                LCAO_Matrix& lm,
+                const int& nks)
 {
     ModuleBase::TITLE("DFTU", "init");
 
@@ -57,7 +57,6 @@ void DFTU::init(UnitCell& cell, // unitcell class
     // global parameters, need to be removed in future
     const int npol = GlobalV::NPOL; // number of polarization directions
     const int nlocal = GlobalV::NLOCAL; // number of total local orbitals
-    const int nks = GlobalC::kv.nks; // number of k-points
     const int nspin = GlobalV::NSPIN; // number of spins
 
     /*

@@ -1,5 +1,5 @@
-#include "module_io/cube_io.h"
 #include "module_base/element_name.h"
+#include "module_io/cube_io.h"
 
 void ModuleIO::write_cube(
 #ifdef __MPI
@@ -22,11 +22,6 @@ void ModuleIO::write_cube(
 	const int &out_fermi)
 {
 	ModuleBase::TITLE("ModuleIO","write_cube");
-	
-	if (GlobalV::out_chg==0 && GlobalV::out_pot==0) 
-	{
-		return;
-	}
 
 	time_t start, end;
 	std::ofstream ofs_cube;
@@ -117,13 +112,13 @@ void ModuleIO::write_cube(
 						 << " " << fac*ucell->atoms[it].tau[ia].z << std::endl;
 			}
 		}
-		ofs_cube.unsetf(ostream::fixed);
+		ofs_cube.unsetf(std::ostream::fixed);
 		ofs_cube << std::setprecision(precision);
-		ofs_cube << scientific;
+		ofs_cube << std::scientific;
 	}
 
 #ifdef __MPI
-//	for(int ir=0; ir<GlobalC::rhopw->nrxx; ir++) chr.rho[0][ir]=1; // for testing
+//	for(int ir=0; ir<rhopw->nrxx; ir++) chr.rho[0][ir]=1; // for testing
 //	GlobalV::ofs_running << "\n GlobalV::RANK_IN_POOL = " << GlobalV::RANK_IN_POOL;
 	
 	// only do in the first pool.
@@ -197,7 +192,7 @@ void ModuleIO::write_cube(
 					// because this can make our next restart calculation lead
 					// to the same scf_thr as the one saved.
 					zpiece[ir] = data[ir*nplane+iz-startz_current];
-					// GlobalV::ofs_running << "\n get zpiece[" << ir << "]=" << zpiece[ir] << " ir*GlobalC::rhopw->nplane+iz=" << ir*GlobalC::rhopw->nplane+iz;
+					// GlobalV::ofs_running << "\n get zpiece[" << ir << "]=" << zpiece[ir] << " ir*rhopw->nplane+iz=" << ir*rhopw->nplane+iz;
 				}
 			}
 			// case 2: > first part rho: send the rho to 
@@ -208,7 +203,7 @@ void ModuleIO::write_cube(
 				{
 					// zpiece[ir] = rho[is][ir*num_z[GlobalV::RANK_IN_POOL]+iz];
 					zpiece[ir] = data[ir*nplane+iz-startz_current];
-					// GlobalV::ofs_running << "\n get zpiece[" << ir << "]=" << zpiece[ir] << " ir*GlobalC::rhopw->nplane+iz=" << ir*GlobalC::rhopw->nplane+iz;
+					// GlobalV::ofs_running << "\n get zpiece[" << ir << "]=" << zpiece[ir] << " ir*rhopw->nplane+iz=" << ir*rhopw->nplane+iz;
 				}
 				MPI_Send(zpiece, nxy, MPI_DOUBLE, 0, tag, POOL_WORLD);
 			}

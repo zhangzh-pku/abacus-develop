@@ -1,6 +1,7 @@
 #ifndef STO_HCHI_H
 #define STO_HCHI_H
 #include "module_basis/module_pw/pw_basis_k.h"
+#include "module_cell/klist.h"
 
 //-----------------------------------------------------
 // h * chi
@@ -29,17 +30,17 @@ class Stochastic_hchi
 	double Emax;
 
 	void orthogonal_to_psi_reciprocal(
-		complex<double>* wfin, 
-		complex<double> *wfout, 
+		std::complex<double>* wfin, 
+		std::complex<double> *wfout, 
 		const int& ikk); //wfin & wfout are wavefunctions in reciprocal space
 	void hchi(
-		complex<double> *wfin, 
-		complex<double> *wfout, 
+		std::complex<double> *wfin, 
+		std::complex<double> *wfout, 
 		const int m = 1); //wfin & wfout are wavefunctions in reciprocal space
 
 	void hchi_norm(
-		complex<double> *wfin, 
-		complex<double> *wfout, 
+		std::complex<double> *wfin, 
+		std::complex<double> *wfout, 
 		const int m = 1); //wfin & wfout are wavefunctions in reciprocal space
 
 	public:

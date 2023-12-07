@@ -18,8 +18,6 @@ FLOAT = OFF
 # OFF: compile double lib
 GTEST_DIR = /home/qianrui/gnucompile/g_gtest
 # Must give gtest directory
-FFTW_DIR = /home/qianrui/gnucompile/fftw_3.3.8
-# directory of fftw package. only used when CXX=mpicxx/g++
 #======================================================================
 
 
@@ -27,7 +25,7 @@ FFTW_DIR = /home/qianrui/gnucompile/fftw_3.3.8
 # Compiler information 
 #==========================
 HONG = -D__NORMAL
-INCLUDES = -I. -I../../
+INCLUDES = -I. -I../../../
 LIBS = 
 OPTS = -Ofast -march=native -std=c++11 -m64  ${INCLUDES}
 OBJ_DIR = obj
@@ -55,7 +53,7 @@ ifeq ($(DEBUG), ON)
         CXX = g++
     endif
     HONG += -D__DEBUG
-    OPTS += -fsanitize=address -fno-omit-frame-pointer -Wall -g #It can check segmental defaults
+    OPTS += -fsanitize=address -fno-omit-frame-pointer -static-libasan -Wall -g #It can check segmental defaults
 endif
 
 ifeq ($(INTEL), ON)
@@ -64,23 +62,18 @@ ifeq ($(INTEL), ON)
 ##==========================
     LIBS += -L${MKLROOT}/lib/intel64 -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core
     INCLUDES += -I${MKLROOT}/include/fftw
-    OPTS += -simd -qopenmp
+    OPTS +=  -qopenmp
 else
 ##==========================
 ## fftw 
 ##==========================
-    FFTW_INCLUDE_DIR = ${FFTW_DIR}/include
-    FFTW_LIB_DIR     = ${FFTW_DIR}/lib
-    LIBS += -L${FFTW_LIB_DIR} -lfftw3 -Wl,-rpath=${FFTW_LIB_DIR}
-    INCLUDES += -I${FFTW_INCLUDE_DIR}
-    # OPTS += -fopenmp
+    LIBS += -L${MKLROOT}/lib/intel64 -lmkl_intel_lp64   -lmkl_gnu_thread -lmkl_core -lgomp -lpthread -lm
+    INCLUDES += -I${MKLROOT}/include/fftw
+    OPTS += 
 endif
 
 ifeq ($(FLOAT), ON)
     HONG += -D__ENABLE_FLOAT_FFTW
-    ifneq ($(INTEL), ON)
-        LIBS += -lfftw3f
-    endif
 endif
 
 ##==========================
@@ -108,8 +101,8 @@ GTESTOPTS = -I${GTEST_DIR}/include -L${GTEST_DIR}/lib -lgtest -lpthread
 #==========================
 # Objects
 #==========================
-VPATH=../../module_base\
-:../../module_psi/kernels\
+VPATH=../../../module_base\
+:../../../module_psi/kernels\
 :../
 
 MATH_OBJS0=matrix.o\
@@ -117,6 +110,10 @@ matrix3.o\
 tool_quit.o\
 mymath.o\
 timer.o\
+formatter_fmt.o\
+formatter_physfmt.o\
+formatter_table.o\
+formatter_contextfmt.o\
 pw_basis.o\
 pw_distributer.o\
 pw_init.o\
@@ -126,9 +123,10 @@ pw_distributeg_method1.o\
 pw_distributeg_method2.o\
 fft.o\
 pw_basis_k.o\
+pw_basis_sup.o\
 pw_transform_k.o\
 memory.o\
-memory_op.o\
+psi_memory_op.o\
 depend_mock.o
 
 OTHER_OBJS0=

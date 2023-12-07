@@ -14,11 +14,14 @@ scf_nmax			20
 basis_type		pw
 md_nstep           3
 
+smearing_method    gauss
+smearing_sigma     0.001
+
 cal_stress          1
 cal_force           1
 
 ks_solver       cg
-mixing_type     pulay
+mixing_type     broyden
 mixing_beta     0.7
 
 md_type          msst

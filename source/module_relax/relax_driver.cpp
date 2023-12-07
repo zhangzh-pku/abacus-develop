@@ -4,7 +4,8 @@
 #include "module_io/print_info.h"
 #include "module_io/write_wfc_r.h"
 
-void Relax_Driver::relax_driver(ModuleESolver::ESolver *p_esolver)
+template<typename FPTYPE, typename Device>
+void Relax_Driver<FPTYPE, Device>::relax_driver(ModuleESolver::ESolver *p_esolver)
 {
     ModuleBase::TITLE("Ions", "opt_ions");
     ModuleBase::timer::tick("Ions", "opt_ions");
@@ -51,7 +52,7 @@ void Relax_Driver::relax_driver(ModuleESolver::ESolver *p_esolver)
             // but I'll use force and stress explicitly here for now
 
             // calculate the total energy
-            p_esolver->cal_Energy(GlobalC::en.etot);
+            this->etot = p_esolver->cal_Energy();
 
             // calculate and gather all parts of total ionic forces
             ModuleBase::matrix force;
@@ -66,22 +67,22 @@ void Relax_Driver::relax_driver(ModuleESolver::ESolver *p_esolver)
                 p_esolver->cal_Stress(stress);
             }
 
-            if (GlobalV::relax_new)
-            {
-                stop = rl.relax_step(force, stress, GlobalC::en.etot);
-            }
-            else
-            {
-                stop = rl_old.relax_step(istep,
-                                         GlobalC::en.etot,
-                                         GlobalC::ucell,
-                                         force,
-                                         stress,
-                                         force_step,
-                                         stress_step); // pengfei Li 2018-05-14
-            }
             if (GlobalV::CALCULATION == "relax" || GlobalV::CALCULATION == "cell-relax")
             {
+                if (GlobalV::relax_new)
+                {
+                    stop = rl.relax_step(force, stress, this->etot);
+                }
+                else
+                {
+                    stop = rl_old.relax_step(istep,
+                                             this->etot,
+                                             GlobalC::ucell,
+                                             force,
+                                             stress,
+                                             force_step,
+                                             stress_step); // pengfei Li 2018-05-14
+                }
                 // print structure
                 std::stringstream ss, ss1;
                 ss << GlobalV::global_out_dir << "STRU_ION_D";
@@ -94,6 +95,23 @@ void Relax_Driver::relax_driver(ModuleESolver::ESolver *p_esolver)
                     GlobalC::ucell.print_stru_file(ss1.str(), 2, 0);
 
                     GlobalC::ucell.print_cell_cif("STRU_NOW.cif");
+                }
+
+                ModuleESolver::ESolver_KS<FPTYPE, Device>* p_esolver_ks = dynamic_cast<ModuleESolver::ESolver_KS<FPTYPE, Device>*>(p_esolver);
+                if (p_esolver_ks && stop && p_esolver_ks->maxniter == p_esolver_ks->niter && !(p_esolver_ks->conv_elec))
+                {
+                    std::cout << "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
+                    std::cout << "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
+                    std::cout << " Relaxation is converged, but the SCF is unconverged! The results are unreliable. " << std::endl;
+                    std::cout << " It is suggested to increase the maximum SCF step and/or perform the relaxation again." << std::endl;
+                    std::cout << "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
+                    std::cout << "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
+                    GlobalV::ofs_running << "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
+                    GlobalV::ofs_running << "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
+                    GlobalV::ofs_running << "\n Relaxation is converged, but the SCF is unconverged! The results are unreliable.. " << std::endl;
+                    GlobalV::ofs_running << "\n It is suggested to increase the maximum SCF step and/or perform the relaxation again. " << std::endl;
+                    GlobalV::ofs_running << "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
+                    GlobalV::ofs_running << "\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%" << std::endl;
                 }
             }
         }
@@ -108,3 +126,6 @@ void Relax_Driver::relax_driver(ModuleESolver::ESolver *p_esolver)
     ModuleBase::timer::tick("Ions", "opt_ions");
     return;
 }
+
+template class Relax_Driver<float, psi::DEVICE_CPU>;
+template class Relax_Driver<double, psi::DEVICE_CPU>;

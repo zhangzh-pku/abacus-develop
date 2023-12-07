@@ -2,7 +2,7 @@
 #include "module_hamilt_general/module_xc/xc_functional.h"
 #include "surchem.h"
 
-void lapl_rho(const std::complex<double> *rhog, double *lapn, ModulePW::PW_Basis *rho_basis)
+void lapl_rho(const std::complex<double>* rhog, double* lapn, const ModulePW::PW_Basis* rho_basis)
 {
     std::complex<double> *gdrtmpg = new std::complex<double>[rho_basis->npw];
     ModuleBase::GlobalFunc::ZEROS(lapn, rho_basis->nrxx);
@@ -31,7 +31,7 @@ void lapl_rho(const std::complex<double> *rhog, double *lapn, ModulePW::PW_Basis
 
 // calculates first derivative of the shape function in realspace
 // exp(-(log(n/n_c))^2 /(2 sigma^2)) /(sigma * sqrt(2*pi) )/n
-void shape_gradn(const complex<double> *PS_TOTN, ModulePW::PW_Basis* rho_basis, double *eprime)
+void shape_gradn(const complex<double>* PS_TOTN, const ModulePW::PW_Basis* rho_basis, double* eprime)
 {
 
     double *PS_TOTN_real = new double[rho_basis->nrxx];
@@ -44,14 +44,17 @@ void shape_gradn(const complex<double> *PS_TOTN, ModulePW::PW_Basis* rho_basis, 
 
     for (int ir = 0; ir < rho_basis->nrxx; ir++)
     {
-        epr_z = log(max(PS_TOTN_real[ir], min) / GlobalV::nc_k) / sqrt(2) / GlobalV::sigma_k;
-        eprime[ir] = epr_c * exp(-pow(epr_z, 2)) / max(PS_TOTN_real[ir], min);
+        epr_z = log(std::max(PS_TOTN_real[ir], min) / GlobalV::nc_k) / sqrt(2) / GlobalV::sigma_k;
+        eprime[ir] = epr_c * exp(-pow(epr_z, 2)) / std::max(PS_TOTN_real[ir], min);
     }
 
     delete[] PS_TOTN_real;
 }
 
-void surchem::createcavity(const UnitCell &ucell, ModulePW::PW_Basis* rho_basis, const complex<double> *PS_TOTN, double *vwork)
+void surchem::createcavity(const UnitCell& ucell,
+                           const ModulePW::PW_Basis* rho_basis,
+                           const complex<double>* PS_TOTN,
+                           double* vwork)
 {
     ModuleBase::Vector3<double> *nablan = new ModuleBase::Vector3<double>[rho_basis->nrxx];
     ModuleBase::GlobalFunc::ZEROS(nablan, rho_basis->nrxx);
@@ -84,7 +87,7 @@ void surchem::createcavity(const UnitCell &ucell, ModulePW::PW_Basis* rho_basis,
     double min = 1e-10;
     for (int ir = 0; ir < rho_basis->nrxx; ir++)
     {
-        tmp = sqrt(max(nablan_2[ir], min));
+        tmp = sqrt(std::max(nablan_2[ir], min));
         vwork[ir] = vwork[ir] - (lapn[ir]) / tmp;
         sqrt_nablan_2[ir] = tmp;
     }
@@ -107,7 +110,7 @@ void surchem::createcavity(const UnitCell &ucell, ModulePW::PW_Basis* rho_basis,
         qs = qs + (term1[ir]) * (sqrt_nablan_2[ir]);
 
         //   1 / |nabla n|
-        sqrt_nablan_2[ir] = 1 / max(sqrt_nablan_2[ir], min);
+        sqrt_nablan_2[ir] = 1 / std::max(sqrt_nablan_2[ir], min);
     }
 
     //-------------------------------------------------------------
@@ -149,7 +152,10 @@ void surchem::createcavity(const UnitCell &ucell, ModulePW::PW_Basis* rho_basis,
     delete[] ggn;
 }
 
-ModuleBase::matrix surchem::cal_vcav(const UnitCell &ucell, ModulePW::PW_Basis* rho_basis, complex<double> *PS_TOTN, int nspin)
+ModuleBase::matrix surchem::cal_vcav(const UnitCell& ucell,
+                                     const ModulePW::PW_Basis* rho_basis,
+                                     complex<double>* PS_TOTN,
+                                     int nspin)
 {
     ModuleBase::TITLE("surchem", "cal_vcav");
     ModuleBase::timer::tick("surchem", "cal_vcav");

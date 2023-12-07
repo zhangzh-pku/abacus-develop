@@ -7,7 +7,6 @@
 #include "xc_functional.h"
 #include "module_base/parallel_reduce.h"
 #include "module_base/timer.h"
-#include "xc_functional.h"
 
 // [etxc, vtxc, v] = XC_Functional::v_xc(...)
 std::tuple<double,double,ModuleBase::matrix> XC_Functional::v_xc(
@@ -48,7 +47,7 @@ std::tuple<double,double,ModuleBase::matrix> XC_Functional::v_xc(
         {
             // total electron charge density
             double rhox = chr->rho[0][ir] + chr->rho_core[ir];
-            double arhox = abs(rhox);
+            double arhox = std::abs(rhox);
             if (arhox > vanishing_charge)
             {
                 double exc = 0.0;
@@ -71,13 +70,13 @@ std::tuple<double,double,ModuleBase::matrix> XC_Functional::v_xc(
         for (int ir = 0;ir < nrxx;ir++)
         {
             double rhox = chr->rho[0][ir] + chr->rho[1][ir] + chr->rho_core[ir]; //HLX(05-29-06): bug fixed
-            double arhox = abs(rhox);
+            double arhox = std::abs(rhox);
 
             if (arhox > vanishing_charge)
             {
                 double zeta = (chr->rho[0][ir] - chr->rho[1][ir]) / arhox; //HLX(05-29-06): bug fixed
 
-                if (abs(zeta)  > 1.0)
+                if (std::abs(zeta)  > 1.0)
                 {
                     zeta = (zeta > 0.0) ? 1.0 : (-1.0);
                 }
@@ -109,7 +108,7 @@ std::tuple<double,double,ModuleBase::matrix> XC_Functional::v_xc(
 
             double rhox = chr->rho[0][ir] + chr->rho_core[ir];
 
-            double arhox = abs( rhox );
+            double arhox = std::abs( rhox );
 
             if ( arhox > vanishing_charge )
             {
@@ -117,7 +116,7 @@ std::tuple<double,double,ModuleBase::matrix> XC_Functional::v_xc(
                 double exc = 0.0;
                 double vxc[2];
 
-                if ( abs( zeta ) > 1.0 )
+                if ( std::abs( zeta ) > 1.0 )
                 {
                     zeta = (zeta > 0.0) ? 1.0 : (-1.0);
                 }//end if
@@ -165,8 +164,8 @@ std::tuple<double,double,ModuleBase::matrix> XC_Functional::v_xc(
     // parallel code : collect vtxc,etxc
     // mohan add 2008-06-01
 #ifdef __MPI
-    Parallel_Reduce::reduce_double_pool( etxc );
-    Parallel_Reduce::reduce_double_pool( vtxc );
+    Parallel_Reduce::reduce_pool(etxc);
+    Parallel_Reduce::reduce_pool(vtxc);
 #endif
     etxc *= ucell->omega / chr->rhopw->nxyz;
     vtxc *= ucell->omega / chr->rhopw->nxyz;
@@ -418,8 +417,8 @@ std::tuple<double,double,ModuleBase::matrix> XC_Functional::v_xc_libxc(		// Peiz
     // for MPI, reduce the exchange-correlation energy
     //-------------------------------------------------
     #ifdef __MPI
-    Parallel_Reduce::reduce_double_pool( etxc );
-    Parallel_Reduce::reduce_double_pool( vtxc );
+    Parallel_Reduce::reduce_pool(etxc);
+    Parallel_Reduce::reduce_pool(vtxc);
     #endif
 
     etxc *= omega / chr->rhopw->nxyz;
@@ -454,6 +453,11 @@ std::tuple<double,double,ModuleBase::matrix> XC_Functional::v_xc_libxc(		// Peiz
         ModuleBase::timer::tick("XC_Functional","v_xc_libxc");
         return std::make_tuple( etxc, vtxc, std::move(v_nspin4) );
     } // end if(4==GlobalV::NSPIN)
+    else//NSPIN != 1,2,4 is not supported
+    {
+        throw std::domain_error("GlobalV::NSPIN ="+std::to_string(GlobalV::NSPIN)
+            +" unfinished in "+std::string(__FILE__)+" line "+std::to_string(__LINE__));
+    }
 }
 
 //the interface to libxc xc_mgga_exc_vxc(xc_func,n,rho,grho,laplrho,tau,e,v1,v2,v3,v4)
@@ -468,7 +472,7 @@ std::tuple<double,double,ModuleBase::matrix> XC_Functional::v_xc_libxc(		// Peiz
 //XC_POLARIZED, XC_UNPOLARIZED: internal flags used in LIBXC, denote the polarized(nspin=1) or unpolarized(nspin=2) calculations, definition can be found in xc.h from LIBXC
 
 // [etxc, vtxc, v, vofk] = XC_Functional::v_xc(...)
-tuple<double,double,ModuleBase::matrix,ModuleBase::matrix> XC_Functional::v_xc_meta(
+std::tuple<double,double,ModuleBase::matrix,ModuleBase::matrix> XC_Functional::v_xc_meta(
     const int &nrxx, // number of real-space grid
     const double &omega, // volume of cell
     const double tpiba,
@@ -605,7 +609,7 @@ tuple<double,double,ModuleBase::matrix,ModuleBase::matrix> XC_Functional::v_xc_m
 #endif
         for( int ir=0; ir<nrxx; ++ir )
         {
-            if ( rho[ir]<rho_th || sqrt(abs(sigma[ir]))<grho_th || abs(kin_r[ir])<tau_th)
+            if ( rho[ir]<rho_th || sqrt(std::abs(sigma[ir]))<grho_th || std::abs(kin_r[ir])<tau_th)
             {
                 sgn[ir] = 0.0;
             }
@@ -618,9 +622,9 @@ tuple<double,double,ModuleBase::matrix,ModuleBase::matrix> XC_Functional::v_xc_m
 #endif
         for( int ir=0; ir<nrxx; ++ir )
         {
-            if ( rho[ir*2]<rho_th || sqrt(abs(sigma[ir*3]))<grho_th || abs(kin_r[ir*2])<tau_th)
+            if ( rho[ir*2]<rho_th || sqrt(std::abs(sigma[ir*3]))<grho_th || std::abs(kin_r[ir*2])<tau_th)
                 sgn[ir*2] = 0.0;
-            if ( rho[ir*2+1]<rho_th || sqrt(abs(sigma[ir*3+2]))<grho_th || abs(kin_r[ir*2+1])<tau_th)
+            if ( rho[ir*2+1]<rho_th || sqrt(std::abs(sigma[ir*3+2]))<grho_th || std::abs(kin_r[ir*2+1])<tau_th)
                 sgn[ir*2+1] = 0.0;
         }
     }
@@ -755,8 +759,8 @@ tuple<double,double,ModuleBase::matrix,ModuleBase::matrix> XC_Functional::v_xc_m
     // for MPI, reduce the exchange-correlation energy
     //-------------------------------------------------
 #ifdef __MPI
-    Parallel_Reduce::reduce_double_pool( etxc );
-    Parallel_Reduce::reduce_double_pool( vtxc );
+    Parallel_Reduce::reduce_pool(etxc);
+    Parallel_Reduce::reduce_pool(vtxc);
 #endif
 
     etxc *= omega / chr->rhopw->nxyz;
@@ -765,7 +769,7 @@ tuple<double,double,ModuleBase::matrix,ModuleBase::matrix> XC_Functional::v_xc_m
     finish_func(funcs);
 
     ModuleBase::timer::tick("XC_Functional","v_xc_meta");
-    return std::make_tuple( etxc, vtxc, move(v), move(vofk) );
+    return std::make_tuple( etxc, vtxc, std::move(v), std::move(vofk) );
 
 }
 

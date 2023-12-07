@@ -13,7 +13,7 @@
 #include "module_base/scalapack_connector.h"
 #include "module_elecstate/module_charge/symmetry_rho.h"
 #include "module_elecstate/occupy.h"
-#include "module_hamilt_lcao/module_tddft/ELEC_evolve.h"
+#include "module_hamilt_lcao/module_tddft/evolve_elec.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 #include "module_io/print_info.h"
 
@@ -43,11 +43,19 @@ ESolver_KS_LCAO_TDDFT::~ESolver_KS_LCAO_TDDFT()
     delete psi_laststep;
     if (Hk_laststep != nullptr)
     {
-        for (int ik = 0; ik < GlobalC::kv.nks; ++ik)
+        for (int ik = 0; ik < kv.nks; ++ik)
         {
             delete Hk_laststep[ik];
         }
         delete Hk_laststep;
+    }
+    if (Sk_laststep != nullptr)
+    {
+        for (int ik = 0; ik < kv.nks; ++ik)
+        {
+            delete Sk_laststep[ik];
+        }
+        delete Sk_laststep;
     }
 }
 
@@ -61,18 +69,18 @@ void ESolver_KS_LCAO_TDDFT::Init(Input& inp, UnitCell& ucell)
     // output is GlobalC::ppcell.vloc 3D local pseudopotentials
     // without structure factors
     // this function belongs to cell LOOP
-    GlobalC::ppcell.init_vloc(GlobalC::ppcell.vloc, GlobalC::rhopw);
+    GlobalC::ppcell.init_vloc(GlobalC::ppcell.vloc, pw_rho);
 
     if (this->pelec == nullptr)
     {
         this->pelec = new elecstate::ElecStateLCAO_TDDFT(&(this->chr),
-                                                         &(GlobalC::kv),
-                                                         GlobalC::kv.nks,
+                                                         &(kv),
+                                                         kv.nks,
                                                          &(this->LOC),
                                                          &(this->UHM),
                                                          &(this->LOWF),
                                                          this->pw_rho,
-                                                         GlobalC::bigpw);
+                                                         pw_big);
     }
 
     //------------------init Basis_lcao----------------------
@@ -85,7 +93,7 @@ void ESolver_KS_LCAO_TDDFT::Init(Input& inp, UnitCell& ucell)
     //------------------init Hamilt_lcao----------------------
     // * allocate H and S matrices according to computational resources
     // * set the 'trace' between local H/S and global H/S
-    this->LM.divide_HS_in_frag(GlobalV::GAMMA_ONLY_LOCAL, orb_con.ParaV);
+    this->LM.divide_HS_in_frag(GlobalV::GAMMA_ONLY_LOCAL, orb_con.ParaV, kv.nks);
     //------------------init Hamilt_lcao----------------------
 
     // pass Hamilt-pointer to Operator
@@ -93,102 +101,29 @@ void ESolver_KS_LCAO_TDDFT::Init(Input& inp, UnitCell& ucell)
     // pass basis-pointer to EState and Psi
     this->LOC.ParaV = this->LOWF.ParaV = this->LM.ParaV;
 
+    // init DensityMatrix
+    dynamic_cast<elecstate::ElecStateLCAO<std::complex<double>>*>(this->pelec)->init_DM(&kv, this->LM.ParaV, GlobalV::NSPIN);
+
     // init Psi, HSolver, ElecState, Hamilt
     if (this->phsol == nullptr)
     {
-        this->phsol = new hsolver::HSolverLCAO(this->LOWF.ParaV);
+        this->phsol = new hsolver::HSolverLCAO<std::complex<double>>(this->LOWF.ParaV);
         this->phsol->method = GlobalV::KS_SOLVER;
     }
 
     // Inititlize the charge density.
     this->pelec->charge->allocate(GlobalV::NSPIN);
+    this->pelec->omega = GlobalC::ucell.omega;
 
     // Initializee the potential.
-    this->pelec->pot = new elecstate::Potential(GlobalC::rhopw,
+    this->pelec->pot = new elecstate::Potential(pw_rhod,
+                                                pw_rho,
                                                 &GlobalC::ucell,
                                                 &(GlobalC::ppcell.vloc),
-                                                &(GlobalC::sf.strucFac),
-                                                &(GlobalC::en.etxc),
-                                                &(GlobalC::en.vtxc));
+                                                &(sf),
+                                                &(pelec->f_en.etxc),
+                                                &(pelec->f_en.vtxc));
     this->pelec_td = dynamic_cast<elecstate::ElecStateLCAO_TDDFT*>(this->pelec);
-}
-
-void ESolver_KS_LCAO_TDDFT::eachiterinit(const int istep, const int iter)
-{
-    // mohan add 2010-07-16
-    // used for pulay mixing.
-    if (iter == 1)
-        GlobalC::CHR_MIX.reset();
-
-    // mohan update 2012-06-05
-    GlobalC::en.deband_harris = GlobalC::en.delta_e(this->pelec);
-
-    // mohan move it outside 2011-01-13
-    // first need to calculate the weight according to
-    // electrons number.
-    // mohan add iter > 1 on 2011-04-02
-    // because the GlobalC::en.ekb has not value now.
-    // so the smearing can not be done.
-    // if (iter > 1 && istep <= 1 && GlobalV::ocp == 0)
-    //    Occupy::calculate_weights();
-
-    if (GlobalC::wf.init_wfc == "file")
-    {
-        if (iter == 1)
-        {
-            std::cout << " WAVEFUN -> CHARGE " << std::endl;
-
-            // The occupation should be read in together.
-            // Occupy::calculate_weights(); //mohan add 2012-02-15
-
-            // calculate the density matrix using read in wave functions
-            // and the ncalculate the charge density on grid.
-            if (this->psi != nullptr)
-            {
-                if (istep >= 2)
-                {
-                    this->pelec_td->psiToRho_td(this->psi[0]);
-                }
-                else
-                {
-                    this->pelec_td->psiToRho(this->psi[0]);
-                }
-            }
-            else
-            {
-                this->pelec_td->psiToRho(this->psid[0]);
-            }
-
-            // calculate the local potential(rho) again.
-            // the grid integration will do in later grid integration.
-
-            // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-            // a puzzle remains here.
-            // if I don't renew potential,
-            // The scf_thr is very small.
-            // OneElectron, Hartree and
-            // Exc energy are all correct
-            // except the band energy.
-            //
-            // solved by mohan 2010-09-10
-            // there are there rho here:
-            // rho1: formed by read in orbitals.
-            // rho2: atomic rho, used to construct H
-            // rho3: generated by after diagonalize
-            // here converged because rho3 and rho1
-            // are very close.
-            // so be careful here, make sure
-            // rho1 and rho2 are the same rho.
-            // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-            this->pelec->pot->init_pot(istep, this->pelec->charge);
-            GlobalC::en.delta_escf(this->pelec);
-        }
-    }
-
-    if (!GlobalV::GAMMA_ONLY_LOCAL)
-    {
-        this->UHM.GK.renew();
-    }
 }
 
 void ESolver_KS_LCAO_TDDFT::hamilt2density(int istep, int iter, double ethr)
@@ -196,36 +131,53 @@ void ESolver_KS_LCAO_TDDFT::hamilt2density(int istep, int iter, double ethr)
 
     pelec->charge->save_rho_before_sum_band();
 
-    if (GlobalV::ESOLVER_TYPE == "tddft" && istep >= 2 && !GlobalV::GAMMA_ONLY_LOCAL)
+    if (wf.init_wfc == "file")
     {
-        ELEC_evolve::evolve_psi(istep,
-                                this->p_hamilt,
-                                this->LOWF,
-                                this->psi,
-                                this->psi_laststep,
-                                this->Hk_laststep,
-                                this->pelec_td->ekb,
-                                td_htype,
-                                INPUT.propagator);
+        if (istep >= 1)
+        {
+            module_tddft::Evolve_elec::solve_psi(istep,
+                                                 GlobalV::NBANDS,
+                                                 GlobalV::NLOCAL,
+                                                 this->p_hamilt,
+                                                 this->LOWF,
+                                                 this->psi,
+                                                 this->psi_laststep,
+                                                 this->Hk_laststep,
+                                                 this->Sk_laststep,
+                                                 this->pelec_td->ekb,
+                                                 td_htype,
+                                                 INPUT.propagator,
+                                                 kv.nks);
+            this->pelec_td->psiToRho_td(this->psi[0]);
+        }
         this->pelec_td->psiToRho_td(this->psi[0]);
-        // this->pelec_td->psiToRho(this->psi[0]);
     }
-    // using HSolverLCAO::solve()
+    else if (istep >= 2)
+    {
+        module_tddft::Evolve_elec::solve_psi(istep,
+                                             GlobalV::NBANDS,
+                                             GlobalV::NLOCAL,
+                                             this->p_hamilt,
+                                             this->LOWF,
+                                             this->psi,
+                                             this->psi_laststep,
+                                             this->Hk_laststep,
+                                             this->Sk_laststep,
+                                             this->pelec_td->ekb,
+                                             td_htype,
+                                             INPUT.propagator,
+                                             kv.nks);
+        this->pelec_td->psiToRho_td(this->psi[0]);
+    }
+    // using HSolverLCAO<std::complex<double>>::solve()
     else if (this->phsol != nullptr)
     {
         // reset energy
-        this->pelec_td->eband = 0.0;
-        this->pelec_td->demet = 0.0;
-        this->pelec_td->ef = 0.0;
-        GlobalC::en.ef_up = 0.0;
-        GlobalC::en.ef_dw = 0.0;
+        this->pelec->f_en.eband = 0.0;
+        this->pelec->f_en.demet = 0.0;
         if (this->psi != nullptr)
         {
             this->phsol->solve(this->p_hamilt, this->psi[0], this->pelec_td, GlobalV::KS_SOLVER);
-        }
-        else if (this->psid != nullptr)
-        {
-            this->phsol->solve(this->p_hamilt, this->psid[0], this->pelec_td, GlobalV::KS_SOLVER);
         }
     }
     else
@@ -233,61 +185,56 @@ void ESolver_KS_LCAO_TDDFT::hamilt2density(int istep, int iter, double ethr)
         ModuleBase::WARNING_QUIT("ESolver_KS_LCAO", "HSolver has not been initialed!");
     }
 
+    // print occupation of each band
     if (iter == 1 && istep <= 2)
     {
         GlobalV::ofs_running
             << "------------------------------------------------------------------------------------------------"
-            << endl;
-        GlobalV::ofs_running << "occupation : " << endl;
-        GlobalV::ofs_running << "ik  iband     occ " << endl;
+            << std::endl;
+        GlobalV::ofs_running << "occupation : " << std::endl;
+        GlobalV::ofs_running << "ik  iband     occ " << std::endl;
         GlobalV::ofs_running << std::setprecision(6);
-        GlobalV::ofs_running << std::setiosflags(ios::showpoint);
-        for (int ik = 0; ik < GlobalC::kv.nks; ik++)
+        GlobalV::ofs_running << std::setiosflags(std::ios::showpoint);
+        for (int ik = 0; ik < kv.nks; ik++)
         {
             for (int ib = 0; ib < GlobalV::NBANDS; ib++)
             {
                 std::setprecision(6);
-                GlobalV::ofs_running << ik + 1 << "     " << ib + 1 << "      " << this->pelec_td->wg(ik, ib) << endl;
+                GlobalV::ofs_running << ik + 1 << "     " << ib + 1 << "      " << this->pelec_td->wg(ik, ib) << std::endl;
             }
         }
-        GlobalV::ofs_running << endl;
+        GlobalV::ofs_running << std::endl;
         GlobalV::ofs_running
             << "------------------------------------------------------------------------------------------------"
-            << endl;
+            << std::endl;
     }
 
-    // transform energy for print
-    GlobalC::en.eband = this->pelec_td->eband;
-    GlobalC::en.demet = this->pelec_td->demet;
-    GlobalC::en.ef = this->pelec_td->ef;
-
-    // (3) sum bands to calculate charge density
-    // if (istep <= 1 ) Occupy::calculate_weights();
-
-    for (int ik = 0; ik < GlobalC::kv.nks; ++ik)
+    for (int ik = 0; ik < kv.nks; ++ik)
     {
-        this->pelec_td->print_band(ik, GlobalC::en.printe, iter);
+        this->pelec_td->print_band(ik, INPUT.printe, iter);
     }
 
-    // (4) mohan add 2010-06-24
     // using new charge density.
-    GlobalC::en.calculate_harris();
+    this->pelec->cal_energies(1);
 
-    // (5) symmetrize the charge density
+    // symmetrize the charge density only for ground state
     if (istep <= 1)
     {
         Symmetry_rho srho;
         for (int is = 0; is < GlobalV::NSPIN; is++)
         {
-            srho.begin(is, *(pelec->charge), GlobalC::rhopw, GlobalC::Pgrid, GlobalC::symm);
+            srho.begin(is, *(pelec->charge), pw_rho, GlobalC::Pgrid, this->symm);
         }
     }
 
     // (6) compute magnetization, only for spin==2
-    GlobalC::ucell.magnet.compute_magnetization(this->pelec->charge->nrxx, this->pelec->charge->nxyz, this->pelec->charge->rho, pelec->nelec_spin.data());
+    GlobalC::ucell.magnet.compute_magnetization(this->pelec->charge->nrxx,
+                                                this->pelec->charge->nxyz,
+                                                this->pelec->charge->rho,
+                                                pelec->nelec_spin.data());
 
     // (7) calculate delta energy
-    GlobalC::en.deband = GlobalC::en.delta_e(this->pelec);
+    this->pelec->f_en.deband = this->pelec->cal_delta_eband();
 }
 
 void ESolver_KS_LCAO_TDDFT::updatepot(const int istep, const int iter)
@@ -299,34 +246,23 @@ void ESolver_KS_LCAO_TDDFT::updatepot(const int istep, const int iter)
         {
             this->UHM.GK.renew(true);
         }
-        for (int ik = 0; ik < GlobalC::kv.nks; ++ik)
+        for (int ik = 0; ik < kv.nks; ++ik)
         {
-            if (hsolver::HSolverLCAO::out_mat_hs)
+            if (hsolver::HSolverLCAO<std::complex<double>>::out_mat_hs)
             {
                 this->p_hamilt->updateHk(ik);
             }
             bool bit = false; // LiuXh, 2017-03-21
             // if set bit = true, there would be error in soc-multi-core calculation, noted by zhengdy-soc
-            if (this->psi != nullptr)
+            if (this->psi != nullptr && (istep % GlobalV::out_interval == 0))
             {
                 hamilt::MatrixBlock<complex<double>> h_mat, s_mat;
                 this->p_hamilt->matrix(h_mat, s_mat);
-                ModuleIO::saving_HS(h_mat.p,
+                ModuleIO::saving_HS(istep,
+                                    h_mat.p,
                                     s_mat.p,
                                     bit,
-                                    hsolver::HSolverLCAO::out_mat_hs,
-                                    "data-" + std::to_string(ik),
-                                    this->LOWF.ParaV[0],
-                                    1); // LiuXh, 2017-03-21
-            }
-            else if (this->psid != nullptr)
-            {
-                hamilt::MatrixBlock<double> h_mat, s_mat;
-                this->p_hamilt->matrix(h_mat, s_mat);
-                ModuleIO::saving_HS(h_mat.p,
-                                    s_mat.p,
-                                    bit,
-                                    hsolver::HSolverLCAO::out_mat_hs,
+                    hsolver::HSolverLCAO<std::complex<double>>::out_mat_hs,
                                     "data-" + std::to_string(ik),
                                     this->LOWF.ParaV[0],
                                     1); // LiuXh, 2017-03-21
@@ -336,68 +272,71 @@ void ESolver_KS_LCAO_TDDFT::updatepot(const int istep, const int iter)
 
     if (this->conv_elec)
     {
-        if (elecstate::ElecStateLCAO::out_wfc_lcao)
+        if (elecstate::ElecStateLCAO<std::complex<double>>::out_wfc_lcao)
         {
-            elecstate::ElecStateLCAO::out_wfc_flag = 1;
+            elecstate::ElecStateLCAO<std::complex<double>>::out_wfc_flag 
+            = elecstate::ElecStateLCAO<std::complex<double>>::out_wfc_lcao;
         }
-        for (int ik = 0; ik < GlobalC::kv.nks; ik++)
+        for (int ik = 0; ik < kv.nks; ik++)
         {
-            if (this->psi != nullptr)
+            if (istep % GlobalV::out_interval == 0)
             {
-                this->psi[0].fix_k(ik);
-                this->pelec->print_psi(this->psi[0]);
-            }
-            else
-            {
-                this->psid[0].fix_k(ik);
-                this->pelec->print_psi(this->psid[0]);
+                    this->psi[0].fix_k(ik);
+                    this->pelec->print_psi(this->psi[0], istep);
             }
         }
-        elecstate::ElecStateLCAO::out_wfc_flag = 0;
+        elecstate::ElecStateLCAO<std::complex<double>>::out_wfc_flag = 0;
     }
 
-    // (9) Calculate new potential according to new Charge Density.
-
+    // Calculate new potential according to new Charge Density
     if (!this->conv_elec)
     {
         if (GlobalV::NSPIN == 4)
             GlobalC::ucell.cal_ux();
         this->pelec->pot->update_from_charge(this->pelec->charge, &GlobalC::ucell);
-        GlobalC::en.delta_escf(this->pelec);
+        this->pelec->f_en.descf = this->pelec->cal_delta_escf();
     }
     else
     {
-        GlobalC::en.cal_converged(this->pelec);
+        this->pelec->cal_converged();
     }
 
     // store wfc and Hk laststep
-    if (istep >= 1 && this->conv_elec)
+    if (istep >= (wf.init_wfc == "file" ? 0 : 1) && this->conv_elec)
     {
         if (this->psi_laststep == nullptr)
 #ifdef __MPI
-            this->psi_laststep = new psi::Psi<std::complex<double>>(GlobalC::kv.nks,
+            this->psi_laststep = new psi::Psi<std::complex<double>>(kv.nks,
                                                                     this->LOWF.ParaV->ncol_bands,
                                                                     this->LOWF.ParaV->nrow,
                                                                     nullptr);
 #else
-            this->psi_laststep
-                = new psi::Psi<std::complex<double>>(GlobalC::kv.nks, GlobalV::NBANDS, GlobalV::NLOCAL, nullptr);
+            this->psi_laststep = new psi::Psi<std::complex<double>>(kv.nks, GlobalV::NBANDS, GlobalV::NLOCAL, nullptr);
 #endif
 
         if (td_htype == 1)
         {
             if (this->Hk_laststep == nullptr)
             {
-                this->Hk_laststep = new std::complex<double>*[GlobalC::kv.nks];
-                for (int ik = 0; ik < GlobalC::kv.nks; ++ik)
+                this->Hk_laststep = new std::complex<double>*[kv.nks];
+                for (int ik = 0; ik < kv.nks; ++ik)
                 {
                     this->Hk_laststep[ik] = new std::complex<double>[this->LOC.ParaV->nloc];
                     ModuleBase::GlobalFunc::ZEROS(Hk_laststep[ik], this->LOC.ParaV->nloc);
                 }
             }
+            if (this->Sk_laststep == nullptr)
+            {
+                this->Sk_laststep = new std::complex<double>*[kv.nks];
+                for (int ik = 0; ik < kv.nks; ++ik)
+                {
+                    this->Sk_laststep[ik] = new std::complex<double>[this->LOC.ParaV->nloc];
+                    ModuleBase::GlobalFunc::ZEROS(Sk_laststep[ik], this->LOC.ParaV->nloc);
+                }
+            }
         }
 
-        for (int ik = 0; ik < GlobalC::kv.nks; ++ik)
+        for (int ik = 0; ik < kv.nks; ++ik)
         {
             this->psi->fix_k(ik);
             this->psi_laststep->fix_k(ik);
@@ -412,192 +351,70 @@ void ESolver_KS_LCAO_TDDFT::updatepot(const int istep, const int iter)
                 hamilt::MatrixBlock<complex<double>> h_mat, s_mat;
                 this->p_hamilt->matrix(h_mat, s_mat);
                 BlasConnector::copy(this->LOC.ParaV->nloc, h_mat.p, 1, Hk_laststep[ik], 1);
+                BlasConnector::copy(this->LOC.ParaV->nloc, s_mat.p, 1, Sk_laststep[ik], 1);
             }
         }
 
-        if (istep > 1 && ELEC_evolve::td_edm == 0)
+        // calculate energy density matrix for tddft
+        if (istep >= (wf.init_wfc == "file" ? 0 : 2) && module_tddft::Evolve_elec::td_edm == 0)
+        {
             this->cal_edm_tddft();
+        }
     }
 
+    // print "eigen value" for tddft
     if (this->conv_elec)
     {
         GlobalV::ofs_running
             << "------------------------------------------------------------------------------------------------"
-            << endl;
-        GlobalV::ofs_running << "Eii : " << endl;
-        GlobalV::ofs_running << "ik  iband    Eii (eV)" << endl;
+            << std::endl;
+        GlobalV::ofs_running << "Eii : " << std::endl;
+        GlobalV::ofs_running << "ik  iband    Eii (eV)" << std::endl;
         GlobalV::ofs_running << std::setprecision(6);
-        GlobalV::ofs_running << std::setiosflags(ios::showpoint);
-        for (int ik = 0; ik < GlobalC::kv.nks; ik++)
+        GlobalV::ofs_running << std::setiosflags(std::ios::showpoint);
+        for (int ik = 0; ik < kv.nks; ik++)
         {
             for (int ib = 0; ib < GlobalV::NBANDS; ib++)
             {
                 GlobalV::ofs_running << ik + 1 << "     " << ib + 1 << "      "
-                                     << this->pelec_td->ekb(ik, ib) * ModuleBase::Ry_to_eV << endl;
+                                     << this->pelec_td->ekb(ik, ib) * ModuleBase::Ry_to_eV << std::endl;
             }
         }
-        GlobalV::ofs_running << endl;
+        GlobalV::ofs_running << std::endl;
         GlobalV::ofs_running
             << "------------------------------------------------------------------------------------------------"
-            << endl;
+            << std::endl;
     }
 }
 
 void ESolver_KS_LCAO_TDDFT::afterscf(const int istep)
 {
-    // if (this->conv_elec || iter == GlobalV::SCF_NMAX)
-    // {
-    //--------------------------------------
-    // 1. output charge density for converged,
-    // 0 means don't need to consider iter,
-    //--------------------------------------
-
     for (int is = 0; is < GlobalV::NSPIN; is++)
     {
-        const int precision = 3;
-        std::stringstream ssc;
-        ssc << GlobalV::global_out_dir << "SPIN" << is + 1 << "_CHG.cube";
-        double& ef_tmp = GlobalC::en.get_ef(is, GlobalV::TWO_EFERMI);
-        ModuleIO::write_rho(
-#ifdef __MPI
-            GlobalC::bigpw->bz,
-            GlobalC::bigpw->nbz,
-            GlobalC::rhopw->nplane,
-            GlobalC::rhopw->startz_current,
-#endif
-            pelec->charge->rho_save[is],
-            is,
-            GlobalV::NSPIN,
-            0,
-            ssc.str(),
-            GlobalC::rhopw->nx,
-            GlobalC::rhopw->ny,
-            GlobalC::rhopw->nz,
-            ef_tmp,
-            &(GlobalC::ucell),
-            precision);
-
-        if (ELEC_evolve::out_dipole == 1)
+        if (module_tddft::Evolve_elec::out_dipole == 1)
         {
             std::stringstream ss_dipole;
             ss_dipole << GlobalV::global_out_dir << "SPIN" << is + 1 << "_DIPOLE";
-            ModuleIO::write_dipole(pelec->charge->rho_save[is], is, istep, ss_dipole.str());
-        }
-
-        std::stringstream ssd;
-        if (GlobalV::GAMMA_ONLY_LOCAL)
-        {
-            ssd << GlobalV::global_out_dir << "SPIN" << is + 1 << "_DM";
-        }
-        else
-        {
-            ssd << GlobalV::global_out_dir << "SPIN" << is + 1 << "_DM_R";
-        }
-
-        ModuleIO::write_dm(
-#ifdef __MPI
-            GlobalC::GridT.trace_lo,
-#endif
-            is,
-            0,
-            ssd.str(),
-            precision,
-            this->LOC.out_dm,
-            this->LOC.DM,
-            ef_tmp,
-            &(GlobalC::ucell));
-
-        if (GlobalV::out_pot == 1) // LiuXh add 20200701
-        {
-            std::stringstream ssp;
-            ssp << GlobalV::global_out_dir << "SPIN" << is + 1 << "_POT.cube";
-            this->pelec->pot->write_potential(
-#ifdef __MPI
-                GlobalC::bigpw->bz,
-                GlobalC::bigpw->nbz,
-                this->pw_rho->nplane,
-                this->pw_rho->startz_current,
-#endif
-                is,
-                0,
-                ssp.str(),
-                this->pw_rho->nx,
-                this->pw_rho->ny,
-                this->pw_rho->nz,
-                this->pelec->pot->get_effective_v(),
-                precision);
+            ModuleIO::write_dipole(pelec->charge->rho_save[is], pelec->charge->rhopw, is, istep, ss_dipole.str());
         }
     }
 
-    if (this->conv_elec)
-    {
-        GlobalV::ofs_running << "\n charge density convergence is achieved" << std::endl;
-        GlobalV::ofs_running << " final etot is " << GlobalC::en.etot * ModuleBase::Ry_to_eV << " eV" << std::endl;
-    }
-
-    if (GlobalV::OUT_LEVEL != "m")
-    {
-        // this->pelec->print_eigenvalue(GlobalV::ofs_running);
-    }
-
-    if (this->conv_elec)
-    {
-        // xiaohui add "OUT_LEVEL", 2015-09-16
-        if (GlobalV::OUT_LEVEL != "m")
-            GlobalV::ofs_running << std::setprecision(16);
-        if (GlobalV::OUT_LEVEL != "m")
-            GlobalV::ofs_running << " EFERMI = " << GlobalC::en.ef * ModuleBase::Ry_to_eV << " eV" << std::endl;
-    }
-    else
-    {
-        GlobalV::ofs_running << " !! convergence has not been achieved @_@" << std::endl;
-        if (GlobalV::OUT_LEVEL == "ie" || GlobalV::OUT_LEVEL == "m") // xiaohui add "m" option, 2015-09-16
-            std::cout << " !! CONVERGENCE HAS NOT BEEN ACHIEVED !!" << std::endl;
-    }
-
-    if( GlobalV::CALCULATION != "md" || (istep % GlobalV::out_interval == 0))
-    {
-        if (hsolver::HSolverLCAO::out_mat_hsR)
-        {
-            ModuleIO::output_HS_R(istep, this->pelec->pot->get_effective_v(), this->UHM); // LiuXh add 2019-07-15
-        }
-
-        if (hsolver::HSolverLCAO::out_mat_t)
-        {
-            ModuleIO::output_T_R(istep, this->UHM); // LiuXh add 2019-07-15
-        }
-
-        if (hsolver::HSolverLCAO::out_mat_dh)
-        {
-            ModuleIO::output_dH_R(istep, this->pelec->pot->get_effective_v(), this->UHM); // LiuXh add 2019-07-15
-        }
-
-        // add by jingan for out r_R matrix 2019.8.14
-        if (INPUT.out_mat_r)
-        {
-            cal_r_overlap_R r_matrix;
-            r_matrix.init(*this->LOWF.ParaV);
-
-            if (hsolver::HSolverLCAO::out_mat_hsR)
-            {
-                r_matrix.out_rR_other(istep, this->LM.output_R_coor);
-            }
-            else
-            {
-                r_matrix.out_rR(istep);
-            }
-        }
-    }
+    ESolver_KS_LCAO<std::complex<double>, double>::afterscf(istep);
 }
 
 // use the original formula (Hamiltonian matrix) to calculate energy density matrix
 void ESolver_KS_LCAO_TDDFT::cal_edm_tddft()
 {
-    this->LOC.edm_k_tddft.resize(GlobalC::kv.nks);
-    for (int ik = 0; ik < GlobalC::kv.nks; ++ik)
+    //this->LOC.edm_k_tddft.resize(kv.nks);
+    dynamic_cast<elecstate::ElecStateLCAO<std::complex<double>>*>(this->pelec)->get_DM()->EDMK.resize(kv.nks);
+    for (int ik = 0; ik < kv.nks; ++ik)
     {
+        std::complex<double>* tmp_dmk = dynamic_cast<elecstate::ElecStateLCAO<std::complex<double>>*>(this->pelec)->get_DM()->get_DMK_pointer(ik);
+        ModuleBase::ComplexMatrix& tmp_edmk = dynamic_cast<elecstate::ElecStateLCAO<std::complex<double>>*>(this->pelec)->get_DM()->EDMK[ik];
+        const Parallel_Orbitals* tmp_pv = dynamic_cast<elecstate::ElecStateLCAO<std::complex<double>>*>(this->pelec)->get_DM()->get_paraV_pointer();
 #ifdef __MPI
-        this->LOC.edm_k_tddft[ik].create(this->LOC.ParaV->ncol, this->LOC.ParaV->nrow);
+        //this->LOC.edm_k_tddft[ik].create(this->LOC.ParaV->ncol, this->LOC.ParaV->nrow);
+        tmp_edmk.create(this->LOC.ParaV->ncol, this->LOC.ParaV->nrow);
         complex<double>* Htmp = new complex<double>[this->LOC.ParaV->nloc];
         complex<double>* Sinv = new complex<double>[this->LOC.ParaV->nloc];
         complex<double>* tmp1 = new complex<double>[this->LOC.ParaV->nloc];
@@ -665,7 +482,7 @@ void ESolver_KS_LCAO_TDDFT::cal_edm_tddft()
                 &GlobalV::NLOCAL,
                 &GlobalV::NLOCAL,
                 &one_float,
-                this->LOC.dm_k[ik].c,
+                tmp_dmk,
                 &one_int,
                 &one_int,
                 this->LOC.ParaV->desc,
@@ -729,7 +546,7 @@ void ESolver_KS_LCAO_TDDFT::cal_edm_tddft()
                 &one_int,
                 &one_int,
                 this->LOC.ParaV->desc,
-                this->LOC.dm_k[ik].c,
+                tmp_dmk,
                 &one_int,
                 &one_int,
                 this->LOC.ParaV->desc,
@@ -752,9 +569,8 @@ void ESolver_KS_LCAO_TDDFT::cal_edm_tddft()
                  &one_int,
                  &one_int,
                  this->LOC.ParaV->desc);
-
-        zcopy_(&this->LOC.ParaV->nloc, tmp4, &inc, this->LOC.edm_k_tddft[ik].c, &inc);
-
+        zcopy_(&this->LOC.ParaV->nloc, tmp4, &inc, tmp_edmk.c, &inc);
+        //zcopy_(&this->LOC.ParaV->nloc, tmp4, &inc, this->LOC.edm_k_tddft[ik].c, &inc);
         delete[] Htmp;
         delete[] Sinv;
         delete[] tmp1;
@@ -763,7 +579,8 @@ void ESolver_KS_LCAO_TDDFT::cal_edm_tddft()
         delete[] tmp4;
         delete[] ipiv;
 #else
-        this->LOC.edm_k_tddft[ik].create(this->LOC.ParaV->ncol, this->LOC.ParaV->nrow);
+        //this->LOC.edm_k_tddft[ik].create(this->LOC.ParaV->ncol, this->LOC.ParaV->nrow);
+        tmp_edmk.create(this->LOC.ParaV->ncol, this->LOC.ParaV->nrow);
         ModuleBase::ComplexMatrix Sinv(GlobalV::NLOCAL, GlobalV::NLOCAL);
         ModuleBase::ComplexMatrix Htmp(GlobalV::NLOCAL, GlobalV::NLOCAL);
         hamilt::MatrixBlock<complex<double>> h_mat, s_mat;
@@ -786,8 +603,16 @@ void ESolver_KS_LCAO_TDDFT::cal_edm_tddft()
 
         LapackConnector::zgetrf(GlobalV::NLOCAL, GlobalV::NLOCAL, Sinv, GlobalV::NLOCAL, IPIV, &INFO);
         LapackConnector::zgetri(GlobalV::NLOCAL, Sinv, GlobalV::NLOCAL, IPIV, WORK, LWORK, &INFO);
-
-        this->LOC.edm_k_tddft[ik] = 0.5 * (Sinv * Htmp * this->LOC.dm_k[ik] + this->LOC.dm_k[ik] * Htmp * Sinv);
+        // I just use ModuleBase::ComplexMatrix temporarily, and will change it to complex<double>*
+        ModuleBase::ComplexMatrix tmp_dmk_base(GlobalV::NLOCAL, GlobalV::NLOCAL);
+        for (int i = 0; i < GlobalV::NLOCAL; i++)
+        {
+            for (int j = 0; j < GlobalV::NLOCAL; j++)
+            {
+                tmp_dmk_base(i, j) = tmp_dmk[i * GlobalV::NLOCAL + j];
+            }
+        }
+        tmp_edmk = 0.5 * (Sinv * Htmp * tmp_dmk_base + tmp_dmk_base * Htmp * Sinv);
         delete[] WORK;
 #endif
     }

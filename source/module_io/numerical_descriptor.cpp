@@ -24,7 +24,7 @@ Numerical_Descriptor::~Numerical_Descriptor()
 }
 
 
-void Numerical_Descriptor::output_descriptor(const psi::Psi<std::complex<double>> &psi, const int &lmax_in, const double &rcut_in, const double &tol_in)
+void Numerical_Descriptor::output_descriptor(const psi::Psi<std::complex<double>> &psi, const int &lmax_in, const double &rcut_in, const double &tol_in, const int nks_in)
 {
 	ModuleBase::TITLE("Numerical_Descriptor","output_descriptor");
 	ModuleBase::GlobalFunc::NEW_PART("DeepKS descriptor: D_{Inl}");
@@ -40,7 +40,7 @@ void Numerical_Descriptor::output_descriptor(const psi::Psi<std::complex<double>
 	this->lmax = lmax_in;
 	assert(lmax>=0);
 
-    const int nks = GlobalC::kv.nks;
+    const int nks = nks_in;
     int ne = 0; 
 	
 	// Peize Lin change 2022.12.15
@@ -53,7 +53,9 @@ void Numerical_Descriptor::output_descriptor(const psi::Psi<std::complex<double>
 		INPUT.bessel_descriptor_smooth,
 		INPUT.bessel_descriptor_sigma,
 		rcut_in,
-		tol_in );
+		tol_in,
+        GlobalC::ucell
+        );
 	this->nmax = Numerical_Descriptor::bessel_basis.get_ecut_number();
     this->init_mu_index();
     this->init_label = true;
@@ -100,7 +102,7 @@ void Numerical_Descriptor::output_descriptor(const psi::Psi<std::complex<double>
     // nks now is the reduced k-points.
     for (int ik=0; ik<nks; ik++)
     {
-        const int npw= GlobalC::kv.ngk[ik];
+        const int npw= p_kv->ngk[ik];
 		GlobalV::ofs_running << " --------------------------------------------------------" << std::endl;
 		GlobalV::ofs_running << " Print the overlap matrixs Q and S for this kpoint";
         GlobalV::ofs_running << "\n " << std::setw(8) << "ik" << std::setw(8) << "npw";
@@ -152,7 +154,7 @@ void Numerical_Descriptor::output_descriptor(const psi::Psi<std::complex<double>
 			for(int id=0; id<nd; ++id)
 			{
 				if(id>0 && id%8==0) ofs << std::endl;
-			//	if(abs(d[id]>1.0e-9)) ofs << d[id] << " ";
+			//	if(std::abs(d[id]>1.0e-9)) ofs << d[id] << " ";
 			//	else ofs << "0 ";
 				ofs << d[id] << " ";
 			}
@@ -270,7 +272,7 @@ std::endl; GlobalV::ofs_running << " Q = < J_it_ia_il_in_im | Psi_n, k > " << st
     ModuleBase::Vector3<double> *gk = new ModuleBase::Vector3 <double> [np];
     for (int ig=0; ig<np; ig++)
     {
-        gk[ig] = wfc_basis->getgpluskcar(ik,ig);
+        gk[ig] = wfcpw->getgpluskcar(ik,ig);
     }
 
     ModuleBase::YlmReal::Ylm_Real(total_lm, np, gk, ylm);
@@ -287,7 +289,7 @@ std::endl; GlobalV::ofs_running << " Q = < J_it_ia_il_in_im | Psi_n, k > " << st
     {
         for (int I1 = 0; I1 < GlobalC::ucell.atoms[T1].na; I1++)
         {
-            std::complex<double> *sk = sf.get_sk(ik, T1, I1,GlobalC::wfcpw);
+            std::complex<double> *sk = sf.get_sk(ik, T1, I1,wfcpw);
             for (int L=0; L< lmax+1; L++)
             {
                 GlobalV::ofs_running << " " << std::setw(5) << ik+1

@@ -1,9 +1,9 @@
 #include "grid_bigcell.h"
-#include "module_hamilt_pw/hamilt_pwdft/global.h"
 
-#include "module_hamilt_lcao/hamilt_lcaodft/global_fp.h" // mohan add 2021-01-30
 #include "module_base/memory.h"
 #include "module_base/timer.h"
+#include "module_basis/module_ao/ORB_read.h"
+#include "module_hamilt_pw/hamilt_pwdft/global.h"
 
 Grid_BigCell::Grid_BigCell()
 {
@@ -266,9 +266,9 @@ void Grid_BigCell::init_tau_in_bigcell(void)
 			delta[1] = fraction.y - (double)jj;
 			delta[2] = fraction.z - (double)kk;
 			
-			if( abs(delta[0]) < 1.0e-8) delta[0] = 0.0;
-			if( abs(delta[1]) < 1.0e-8) delta[1] = 0.0;
-			if( abs(delta[2]) < 1.0e-8) delta[2] = 0.0;
+			if( std::abs(delta[0]) < 1.0e-8) delta[0] = 0.0;
+			if( std::abs(delta[1]) < 1.0e-8) delta[1] = 0.0;
+			if( std::abs(delta[2]) < 1.0e-8) delta[2] = 0.0;
 
 //			std::cout << " fraction=" << fraction.x << " " << fraction.y << " " << fraction.z << std::endl;
 //			std::cout << " delta=" << delta[0] << " " << delta[1] << " " << delta[2] << std::endl;

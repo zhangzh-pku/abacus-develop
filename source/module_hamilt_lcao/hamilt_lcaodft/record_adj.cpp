@@ -1,8 +1,8 @@
 #include "record_adj.h"
-#include "module_hamilt_pw/hamilt_pwdft/global.h"
-#include "module_hamilt_lcao/hamilt_lcaodft/global_fp.h"
+
 #include "module_base/timer.h"
 #include "module_cell/module_neighbor/sltk_grid_driver.h"
+#include "module_hamilt_pw/hamilt_pwdft/global.h"
 Record_adj::Record_adj() : iat2ca(nullptr) {}
 Record_adj::~Record_adj(){
 	if(info_modified)
@@ -128,13 +128,13 @@ void Record_adj::for_2d(Parallel_Orbitals &pv, bool gamma_only)
                         {
                             // the index of orbitals in this processor
                             const int iw1_all = start1 + ii;
-                            const int mu = pv.trace_loc_row[iw1_all];
+                            const int mu = pv.global2local_row(iw1_all);
                             if(mu<0)continue;
 
                             for(int jj=0; jj<GlobalC::ucell.atoms[T2].nw * GlobalV::NPOL; ++jj)
                             {
                                 const int iw2_all = start2 + jj;
-                                const int nu = pv.trace_loc_col[iw2_all];
+                                const int nu = pv.global2local_col(iw2_all);
                                 if(nu<0)continue;
                                 
                                 pv.nlocdim[iat]++;

@@ -4,13 +4,15 @@
 #include "module_basis/module_ao/parallel_orbitals.h"
 
 //write mock function for Parallel_Orbitals
-Parallel_Orbitals::Parallel_Orbitals(){}
+Parallel_2D::Parallel_2D(){}
+Parallel_2D::~Parallel_2D(){}
+Parallel_Orbitals::Parallel_Orbitals() {}
 Parallel_Orbitals::~Parallel_Orbitals(){}
 //define a mock derived class of class ElecState
 
 namespace elecstate
 {
-      const double* ElecState::getRho(int spin) const{return &(this->ef);}//just for mock
+      const double* ElecState::getRho(int spin) const{return &(this->eferm.ef);}//just for mock
       void ElecState::calculate_weights(){}
 }
 

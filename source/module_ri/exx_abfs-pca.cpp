@@ -12,7 +12,6 @@
 
 #include "../module_ri/test_code/element_basis_index-test.h"		// Peize Lin test
 #include <sys/time.h>			// Peize Lin test
-#include "../module_hamilt_lcao/hamilt_lcaodft/global_fp.h"		// Peize Lin test
 
 static inline void tensor_dsyev(const char jobz, const char uplo, RI::Tensor<double>& a, double* w, int& info)
 {
@@ -66,7 +65,7 @@ std::vector<std::vector<std::pair<std::vector<double>, RI::Tensor<double>>>> Exx
 	m_abfslcaos_lcaos.init_radial( abfs, lcaos, lcaos );
 //ofs<<"TIME@m_abfslcaos_lcaos.init_radial\t"<<time_during(t_start)<<std::endl;
 
-	std::map<size_t,std::map<size_t,set<double>>> delta_R;
+	std::map<size_t,std::map<size_t,std::set<double>>> delta_R;
 	for( size_t it=0; it!=abfs.size(); ++it )
 		delta_R[it][it] = {0.0};
 //gettimeofday( &t_start, NULL);

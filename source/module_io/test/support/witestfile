@@ -11,7 +11,7 @@ pseudo_mesh                    0 #0: use our own mesh to do radial renormalizati
 lmaxmax                        2 #maximum of l channels used
 dft_functional                 hse #exchange correlation functional
 xc_temperature                 0 #temperature for finite temperature functionals
-calculation                    scf #test; scf; relax; nscf; ienvelope; istate
+calculation                    scf #test; scf; relax; nscf; get_wf; get_pchg
 esolver_type                   ksdft #the energy solver: ksdft, sdft, ofdft, tddft, lj, dp
 ntype                          1 #atom species number
 nspin                          1 #1: single spin; 2: up and down spin; 4: noncollinear spin
@@ -19,7 +19,7 @@ kspacing                       0 #unit in 1/bohr, should be > 0, default is 0 wh
 min_dist_coef                  0.2 #factor related to the allowed minimum distance between two atoms
 nbands                         8 #number of bands
 nbands_sto                     256 #number of stochastic bands
-nbands_istate                  5 #number of bands around Fermi level for istate calulation
+nbands_istate                  5 #number of bands around Fermi level for get_pchg calulation
 symmetry                       1 #the control of symmetry
 init_vel                       False #read velocity from STRU or not
 symmetry_prec                  1e-05 #accuracy for symmetry
@@ -46,6 +46,7 @@ device                         cpu #the computing device for ABACUS
 ecutwfc                        20 ##energy cutoff for wave functions
 pw_diag_thr                    0.01 #threshold for eigenvalues is cg electron iterations
 scf_thr                        1e-08 #charge density error
+scf_thr_type                   2 #type of the criterion of scf_thr, 1: reci drho for pw, 2: real drho for lcao
 init_wfc                       atomic #start wave functions are from 'atomic', 'atomic+random', 'random' or 'file'
 init_chg                       atomic #start charge is from 'atomic' or file
 chg_extrap                     atomic #atomic; first-order; second-order; dm:coefficients of SIA
@@ -155,9 +156,9 @@ smearing_method                gauss #type of smearing_method: gauss; fd; fixed;
 smearing_sigma                 0.002 #energy range for smearing
 
 #Parameters (7.Charge Mixing)
-mixing_type                    pulay #plain; pulay; broyden
+mixing_type                    broyden #plain; pulay; broyden
 mixing_beta                    0.7 #mixing parameter: 0 means no new charge
-mixing_ndim                    8 #mixing dimension in pulay
+mixing_ndim                    8 #mixing dimension in pulay or broyden
 mixing_gg0                     0 #mixing parameter in kerker
 
 #Parameters (8.DOS)
@@ -257,7 +258,7 @@ exx_hybrid_alpha               default #
 exx_hse_omega                  0.11 #
 exx_separate_loop              1 #0 or 1
 exx_hybrid_step                100 #
-exx_mixing_beta                0.0 #
+exx_mixing_beta                1.0 #
 exx_lambda                     0.3 #
 exx_real_number                default #0 or 1
 exx_pca_threshold              0 #
@@ -279,7 +280,7 @@ exx_opt_orb_tolerence          0 #
 td_force_dt                    0.02 #time of force change
 td_vext                        0 #add extern potential or not
 td_vext_dire                   1 #extern potential direction
-propagator                     0 # method of propagator
+td_propagator                     0 # method of propagator
 td_stype                       0 #space domain type
 td_ttype                       0 #time domain type
 td_tstart                      1 #the start step of electric field
@@ -321,6 +322,11 @@ gdir                           3 #calculate the polarization in the direction of
 towannier90                    0 #use wannier90 code interface or not
 nnkpfile                       seedname.nnkp #the wannier90 code nnkp file name
 wannier_spin                   up #calculate spin in wannier90 code interface
+out_wannier_mmn                1 #output .mmn file or not
+out_wannier_amn                1 #output .amn file or not
+out_wannier_unk                1 #output UNK. file or not
+out_wannier_eig                1 #output .eig file or not
+out_wannier_wvfn_formatted     1 #output UNK. file in text format or in binary format
 
 #Parameters (18.implicit_solvation)
 imp_sol                        0 #calculate implicit solvation correction or not

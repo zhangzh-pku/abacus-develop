@@ -10,10 +10,8 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
-// #include "module_hamilt_lcao/hamilt_lcaodft/global_fp.h"
-using namespace std;
 
-template <typename Tdata> void RPA_LRI<Tdata>::init(const MPI_Comm &mpi_comm_in, const K_Vectors &kv_in)
+template <typename T, typename Tdata> void RPA_LRI<T, Tdata>::init(const MPI_Comm& mpi_comm_in, const K_Vectors& kv_in)
 {
     ModuleBase::TITLE("RPA_LRI", "init");
     ModuleBase::timer::tick("RPA_LRI", "init");
@@ -27,7 +25,7 @@ template <typename Tdata> void RPA_LRI<Tdata>::init(const MPI_Comm &mpi_comm_in,
     //    exx_lri_rpa.cv = exx_lri_rpa.cv;
 }
 
-template <typename Tdata> void RPA_LRI<Tdata>::cal_rpa_cv()
+template <typename T, typename Tdata> void RPA_LRI<T, Tdata>::cal_rpa_cv()
 {
     std::vector<TA> atoms(GlobalC::ucell.nat);
     for (int iat = 0; iat < GlobalC::ucell.nat; ++iat)
@@ -59,24 +57,24 @@ template <typename Tdata> void RPA_LRI<Tdata>::cal_rpa_cv()
     this->Cs_period = RI::RI_Tools::cal_period(Cs, period);
 }
 
-template <typename Tdata>
-void RPA_LRI<Tdata>::cal_postSCF_exx(
-                const MPI_Comm& mpi_comm_in,
-                const K_Vectors& kv,
-                const Local_Orbital_Charge& loc,
-                const Parallel_Orbitals& pv)
+template <typename T, typename Tdata>
+void RPA_LRI<T, Tdata>::cal_postSCF_exx(const elecstate::DensityMatrix<T, Tdata>& dm,
+    const MPI_Comm& mpi_comm_in,
+    const K_Vectors& kv)
 {
+    exx_lri_rpa.mix_DMk_2D.set_nks(kv.nks, GlobalV::GAMMA_ONLY_LOCAL);
+    exx_lri_rpa.mix_DMk_2D.set_mixing(nullptr);
+    exx_lri_rpa.mix_DMk_2D.mix(dm.get_DMK_vector(), true);
     exx_lri_rpa.init(mpi_comm_in, kv);
     exx_lri_rpa.cal_exx_ions();
-    exx_lri_rpa.cal_exx_elec(loc, pv);
+    exx_lri_rpa.cal_exx_elec(*dm.get_paraV_pointer());
     // cout<<"postSCF_Eexx: "<<exx_lri_rpa.Eexx<<endl;
 }
 
-template <typename Tdata>
-void RPA_LRI<Tdata>::out_for_RPA(const Parallel_Orbitals &parav,
-                                 const psi::Psi<std::complex<double>> &psi,
-                                 Local_Orbital_Charge &loc,
-                                 const elecstate::ElecState *pelec)
+template <typename T, typename Tdata>
+void RPA_LRI<T, Tdata>::out_for_RPA(const Parallel_Orbitals& parav,
+    const psi::Psi<T>& psi,
+    const elecstate::ElecState* pelec)
 {
     ModuleBase::TITLE("DFT_RPA_interface", "out_for_RPA");
     this->out_bands(pelec);
@@ -90,16 +88,16 @@ void RPA_LRI<Tdata>::out_for_RPA(const Parallel_Orbitals &parav,
     this->out_Cs();
     this->out_coulomb_k();
 
-    std::cout << "etxc(Ha): " << std::fixed << std::setprecision(15) << GlobalC::en.etxc / 2.0 << std::endl;
-    std::cout << "etot(Ha): " << std::fixed << std::setprecision(15) << GlobalC::en.etot / 2.0 << std::endl;
+    std::cout << "etxc(Ha): " << std::fixed << std::setprecision(15) << pelec->f_en.etxc / 2.0 << std::endl;
+    std::cout << "etot(Ha): " << std::fixed << std::setprecision(15) << pelec->f_en.etot / 2.0 << std::endl;
     std::cout << "Etot_without_rpa(Ha): " << std::fixed << std::setprecision(15)
-              << (GlobalC::en.etot - GlobalC::en.etxc + exx_lri_rpa.Eexx) / 2.0 << std::endl;
+              << (pelec->f_en.etot - pelec->f_en.etxc + exx_lri_rpa.Eexx) / 2.0 << std::endl;
 
     return;
 }
 
-template <typename Tdata>
-void RPA_LRI<Tdata>::out_eigen_vector(const Parallel_Orbitals &parav, const psi::Psi<std::complex<double>> &psi)
+template <typename T, typename Tdata>
+void RPA_LRI<T, Tdata>::out_eigen_vector(const Parallel_Orbitals& parav, const psi::Psi<T>& psi)
 {
 
     ModuleBase::TITLE("DFT_RPA_interface", "out_eigen_vector");
@@ -124,11 +122,11 @@ void RPA_LRI<Tdata>::out_eigen_vector(const Parallel_Orbitals &parav, const psi:
             {
                 std::vector<std::complex<double>> wfc_iks(GlobalV::NLOCAL, zero);
 
-                const int ib_local = parav.trace_loc_col[ib_global];
+                const int ib_local = parav.global2local_col(ib_global);
 
                 if (ib_local >= 0)
                     for (int ir = 0; ir < psi.get_nbasis(); ir++)
-                        wfc_iks[parav.MatrixInfo.row_set[ir]] = psi(ik + nks_tot * is, ib_local, ir);
+                        wfc_iks[parav.local2global_row(ir)] = psi(ik + nks_tot * is, ib_local, ir);
 
                 std::vector<std::complex<double>> tmp = wfc_iks;
 #ifdef __MPI
@@ -154,7 +152,7 @@ void RPA_LRI<Tdata>::out_eigen_vector(const Parallel_Orbitals &parav, const psi:
     return;
 }
 
-template <typename Tdata> void RPA_LRI<Tdata>::out_struc()
+template <typename T, typename Tdata> void RPA_LRI<T, Tdata>::out_struc()
 {
     if (GlobalV::MY_RANK != 0)
         return;
@@ -187,7 +185,7 @@ template <typename Tdata> void RPA_LRI<Tdata>::out_struc()
     return;
 }
 
-template <typename Tdata> void RPA_LRI<Tdata>::out_bands(const elecstate::ElecState *pelec)
+template <typename T, typename Tdata> void RPA_LRI<T, Tdata>::out_bands(const elecstate::ElecState* pelec)
 {
     ModuleBase::TITLE("DFT_RPA_interface", "out_bands");
     if (GlobalV::MY_RANK != 0)
@@ -202,7 +200,7 @@ template <typename Tdata> void RPA_LRI<Tdata>::out_bands(const elecstate::ElecSt
     ofs << GlobalV::NSPIN << std::endl;
     ofs << GlobalV::NBANDS << std::endl;
     ofs << GlobalV::NLOCAL << std::endl;
-    ofs << (GlobalC::en.ef / 2.0) << std::endl;
+    ofs << (pelec->eferm.ef / 2.0) << std::endl;
 
     for (int ik = 0; ik != nks_tot; ik++)
     {
@@ -220,7 +218,7 @@ template <typename Tdata> void RPA_LRI<Tdata>::out_bands(const elecstate::ElecSt
     return;
 }
 
-template <typename Tdata> void RPA_LRI<Tdata>::out_Cs()
+template <typename T, typename Tdata> void RPA_LRI<T, Tdata>::out_Cs()
 {
     std::stringstream ss;
     ss << "Cs_data_" << GlobalV::MY_RANK << ".txt";
@@ -251,7 +249,7 @@ template <typename Tdata> void RPA_LRI<Tdata>::out_Cs()
     return;
 }
 
-template <typename Tdata> void RPA_LRI<Tdata>::out_coulomb_k()
+template <typename T, typename Tdata> void RPA_LRI<T, Tdata>::out_coulomb_k()
 {
     int all_mu = 0;
     vector<int> mu_shift(GlobalC::ucell.nat);
@@ -275,7 +273,7 @@ template <typename Tdata> void RPA_LRI<Tdata>::out_coulomb_k()
 
         for (int ik = 0; ik != nks_tot; ik++)
         {
-            map<size_t, RI::Tensor<complex<double>>> Vq_k_IJ;
+            std::map<size_t, RI::Tensor<std::complex<double>>> Vq_k_IJ;
             for (auto &JPp: Ip.second)
             {
                 auto J = JPp.first.first;
@@ -283,14 +281,14 @@ template <typename Tdata> void RPA_LRI<Tdata>::out_coulomb_k()
                 auto R = JPp.first.second;
                 if (J < I)
                     continue;
-                RI::Tensor<complex<double>> tmp_VR = RI::Global_Func::convert<complex<double>>(JPp.second);
+                RI::Tensor<std::complex<double>> tmp_VR = RI::Global_Func::convert<std::complex<double>>(JPp.second);
 
                 const double arg = 1
                                    * (p_kv->kvec_c[ik] * (RI_Util::array3_to_Vector3(R) * GlobalC::ucell.latvec))
                                    * ModuleBase::TWO_PI; // latvec
-                const complex<double> kphase = complex<double>(cos(arg), sin(arg));
+                const std::complex<double> kphase = std::complex<double>(cos(arg), sin(arg));
                 if (Vq_k_IJ[J].empty())
-                    Vq_k_IJ[J] = RI::Tensor<complex<double>>({tmp_VR.shape[0], tmp_VR.shape[1]});
+                    Vq_k_IJ[J] = RI::Tensor<std::complex<double>>({tmp_VR.shape[0], tmp_VR.shape[1]});
                 Vq_k_IJ[J] = Vq_k_IJ[J] + tmp_VR * kphase;
             }
             for (auto &vq_Jp: Vq_k_IJ)
@@ -313,7 +311,7 @@ template <typename Tdata> void RPA_LRI<Tdata>::out_coulomb_k()
 }
 
 // template<typename Tdata>
-// void RPA_LRI<Tdata>::init(const MPI_Comm &mpi_comm_in)
+// void RPA_LRI<T, Tdata>::init(const MPI_Comm &mpi_comm_in)
 // {
 // 	if(this->info == this->exx.info)
 // 	{
@@ -341,7 +339,7 @@ template <typename Tdata> void RPA_LRI<Tdata>::out_coulomb_k()
 // }
 
 // template<typename Tdata>
-// void RPA_LRI<Tdata>::cal_rpa_ions()
+// void RPA_LRI<T, Tdata>::cal_rpa_ions()
 // {
 // 	// this->rpa_lri.set_parallel(this->mpi_comm, atoms_pos, latvec, period);
 

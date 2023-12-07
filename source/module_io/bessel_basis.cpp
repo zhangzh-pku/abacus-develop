@@ -1,9 +1,10 @@
 #include "bessel_basis.h"
-#include "module_hamilt_pw/hamilt_pwdft/global.h"
-#include "module_base/parallel_common.h"
+
 #include "module_base/math_integral.h"
 #include "module_base/math_sphbes.h"
+#include "module_base/parallel_common.h"
 #include "module_base/timer.h"
+#include "module_hamilt_pw/hamilt_pwdft/global.h"
 
 Bessel_Basis::Bessel_Basis()
 {
@@ -25,25 +26,29 @@ void Bessel_Basis::init(
 	const bool &smooth,
 	const double &sigma,
 	const double &rcut_in,
-	const double &tol_in,	
+	const double &tol_in,
+	const UnitCell& ucell,
 	const double &dk,
-	const double &dr)
+	const double &dr
+	)
 {
 	ModuleBase::TITLE("Bessel_Basis", "init");
 	this->Dk = dk;
 	this->ecut = ecutwfc;
 	this->rcut = rcut_in;
 	this->tolerence = tol_in;
+    this->smooth = smooth;
+    this->sigma = sigma;
 
-	//----------------------------------------------
-	// setup Ecut_number
-	// ne * pi / rcut = sqrt(ecut) (Rydberg)
-	//----------------------------------------------
-//	this->Ecut_number = static_cast<int>( sqrt( 2.0 * ecut )* rcut/ModuleBase::PI );// hartree
-	this->Ecut_number = static_cast<int>( sqrt( ecut )* rcut/ModuleBase::PI ); // Rydberg Unit.
-	assert( this->Ecut_number > 0 );
+    //----------------------------------------------
+    // setup Ecut_number
+    // ne * pi / rcut = sqrt(ecut) (Rydberg)
+    //----------------------------------------------
+    //	this->Ecut_number = static_cast<int>( sqrt( 2.0 * ecut )* rcut/ModuleBase::PI );// hartree
+    this->Ecut_number = static_cast<int>(sqrt(ecut) * rcut / ModuleBase::PI); // Rydberg Unit.
+    assert(this->Ecut_number > 0);
 
-	//------------------
+    //------------------
 	// Making a table
 	//------------------
 
@@ -61,14 +66,13 @@ void Bessel_Basis::init(
 	if( start_from_file )
 	{
 		// setup C4
-		this->allocate_C4(ntype, lmax_in, GlobalC::ucell.nmax, Ecut_number);
-
+		this->allocate_C4(ntype, lmax_in, ucell.nmax, Ecut_number, ucell);
 		// check tolerence
-		this->readin_C4("INPUTs", ntype, ecut, rcut, Ecut_number, tolerence);
+		this->readin_C4("INPUTs", ntype, ecut, rcut, Ecut_number, tolerence, ucell);
 #ifdef __MPI
 		Parallel_Common::bcast_double( C4.ptr, C4.getSize() );
 #endif
-		this->init_Faln(ntype, lmax_in, GlobalC::ucell.nmax, Ecut_number);
+		this->init_Faln(ntype, lmax_in, ucell.nmax, Ecut_number, ucell);
 	}
 
 	return;
@@ -122,7 +126,8 @@ void Bessel_Basis::init_Faln(
 	const int &ntype,
 	const int &lmax,
 	const int &nmax,
-	const int &ecut_number)
+	const int &ecut_number,
+	const UnitCell& ucell)
 {
 	ModuleBase::TITLE("Bessel_Basis","init_Faln");
 	ModuleBase::timer::tick("Spillage","init_Faln");
@@ -133,9 +138,9 @@ void Bessel_Basis::init_Faln(
 	this->nwfc = 0;
 	for(int it=0; it<ntype; it++)
 	{
-		for(int il=0; il<GlobalC::ucell.atoms[it].nwl+1; il++)
+		for(int il=0; il<ucell.atoms[it].nwl+1; il++)
 		{
-			for(int in=0; in<GlobalC::ucell.atoms[it].l_nchi[il]; in++)
+			for(int in=0; in<ucell.atoms[it].l_nchi[il]; in++)
 			{
 				for(int ie=0; ie<ecut_number; ie++)
 				{
@@ -213,33 +218,33 @@ void Bessel_Basis::init_TableOne(
 	ss << GlobalV::global_out_dir << "jle.orb";
 	std::ofstream ofs(ss.str().c_str());
 	ofs << "---------------------------------------------------------------------------"<< std::endl;
-	ofs << std::setiosflags(ios::left) << std::setw(28) << "Energy Cutoff(Ry)" << ecut << std::endl;
-	ofs << std::setiosflags(ios::left) << std::setw(28) << "Radius Cutoff(a.u.)" << rcut << std::endl;
-	ofs << std::setiosflags(ios::left) << std::setw(28) << "Lmax" << lmax << std::endl;
+	ofs << std::setiosflags(std::ios::left) << std::setw(28) << "Energy Cutoff(Ry)" << ecut << std::endl;
+	ofs << std::setiosflags(std::ios::left) << std::setw(28) << "Radius Cutoff(a.u.)" << rcut << std::endl;
+	ofs << std::setiosflags(std::ios::left) << std::setw(28) << "Lmax" << lmax << std::endl;
 	for (int l = 0; l < lmax + 1; l++)
 	{
 		switch (l)
 		{
 			case 0:
-			ofs << std::setiosflags(ios::left) << std::setw(28) << "Number of Sorbitals-->" << ecut_number << std::endl;
+			ofs << std::setiosflags(std::ios::left) << std::setw(28) << "Number of Sorbitals-->" << ecut_number << std::endl;
 			break;
 			case 1:
-			ofs << std::setiosflags(ios::left) << std::setw(28) << "Number of Porbitals-->" << ecut_number << std::endl;
+			ofs << std::setiosflags(std::ios::left) << std::setw(28) << "Number of Porbitals-->" << ecut_number << std::endl;
 			break;
 			case 2:
-			ofs << std::setiosflags(ios::left) << std::setw(28) << "Number of Dorbitals-->" << ecut_number << std::endl;
+			ofs << std::setiosflags(std::ios::left) << std::setw(28) << "Number of Dorbitals-->" << ecut_number << std::endl;
 			break;
 			case 3:
-			ofs << std::setiosflags(ios::left) << std::setw(28) << "Number of Forbitals-->" << ecut_number << std::endl;
+			ofs << std::setiosflags(std::ios::left) << std::setw(28) << "Number of Forbitals-->" << ecut_number << std::endl;
 			break;
 			default:
-			ofs << std::setiosflags(ios::left) << std::setw(28) << "Number of Gorbitals-->" << ecut_number << std::endl;
+			ofs << std::setiosflags(std::ios::left) << std::setw(28) << "Number of Gorbitals-->" << ecut_number << std::endl;
 		}
 	}
 	ofs << "---------------------------------------------------------------------------"<< std::endl;
 	ofs << "SUMMARY END" << std::endl << std::endl;
-	ofs << std::setiosflags(ios::left) << std::setw(28) << "Mesh" << rmesh << std::endl;
-	ofs << std::setiosflags(ios::left) << std::setw(28) << "dr" << dr << std::endl ;
+	ofs << std::setiosflags(std::ios::left) << std::setw(28) << "Mesh" << rmesh << std::endl;
+	ofs << std::setiosflags(std::ios::left) << std::setw(28) << "dr" << dr << std::endl ;
 	//=========output	 .orb format=============
 
 	// init eigenvalue of Jl
@@ -264,11 +269,11 @@ void Bessel_Basis::init_TableOne(
 
 			//caoyu add 2021-3-10
 			//=========output .orb format=============
-			ofs << std::setiosflags(ios::right) << std::setw(20) << "Type"<< std::setw(20) << "L" << std::setw(20) << "N" << std::endl;
-			ofs << std::setiosflags(ios::right) << std::setw(20) << "0"<< std::setw(20) << l << std::setw(20) << ie << std::endl;
+			ofs << std::setiosflags(std::ios::right) << std::setw(20) << "Type"<< std::setw(20) << "L" << std::setw(20) << "N" << std::endl;
+			ofs << std::setiosflags(std::ios::right) << std::setw(20) << "0"<< std::setw(20) << l << std::setw(20) << ie << std::endl;
 			for (int ir = 0; ir < rmesh; ir++)
 			{
-				ofs << std::setiosflags(ios::scientific)
+				ofs << std::setiosflags(std::ios::scientific)
 				<< std::setprecision(12) << jle[ir]<< " "; if ((ir+1) % 4 == 0) ofs << std::endl;
 			}
 			ofs << std::endl;
@@ -338,7 +343,8 @@ void Bessel_Basis::readin_C4(
 	const int &ecut,
 	const int &rcut,
 	const int &ecut_number,
-	const double &tolerence)
+	const double &tolerence,
+	const UnitCell& ucell)
 {
 	ModuleBase::TITLE("Bessel_Basis","readin_C4");
 
@@ -359,9 +365,9 @@ void Bessel_Basis::readin_C4(
 		{
 			std::string filec4;
 			ifs >> filec4;
-			for(int il=0; il< GlobalC::ucell.atoms[it].nwl+1; il++)
+			for(int il=0; il< ucell.atoms[it].nwl+1; il++)
 			{
-				for(int in=0; in< GlobalC::ucell.atoms[it].l_nchi[il]; in++)
+				for(int in=0; in< ucell.atoms[it].l_nchi[il]; in++)
 				{
 					//for tests
 					//std::cout << "\n" << std::setw(5) << it << std::setw(5) << il << std::setw(5) << in;
@@ -446,7 +452,8 @@ void Bessel_Basis::allocate_C4(
 	const int &ntype,
 	const int &lmax,
 	const int &nmax,
-	const int &ecut_number)
+	const int &ecut_number,
+	const UnitCell& ucell)
 {
 	ModuleBase::TITLE("Bessel_Basis","allocate_C4");
 
@@ -454,9 +461,9 @@ void Bessel_Basis::allocate_C4(
 
 	for(int it=0; it<ntype; it++)
 	{
-		for(int il=0; il<GlobalC::ucell.atoms[it].nwl+1; il++)
+		for(int il=0; il<ucell.atoms[it].nwl+1; il++)
 		{
-			for(int in=0; in<GlobalC::ucell.atoms[it].l_nchi[il]; in++)
+			for(int in=0; in<ucell.atoms[it].l_nchi[il]; in++)
 			{
 				for(int ie=0; ie<ecut_number; ie++)
 				{

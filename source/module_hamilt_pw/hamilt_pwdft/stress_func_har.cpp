@@ -86,17 +86,16 @@ void Stress_Func<FPTYPE, Device>::stress_har(ModuleBase::matrix& sigma, ModulePW
 	}
 }
 #endif
-	//	Parallel_Reduce::reduce_double_pool( GlobalC::en.ehart );
-	//	ehart *= 0.5 * GlobalC::ucell.omega;
-	for(int l=0;l<3;l++)
+
+    for(int l=0;l<3;l++)
 	{
 		for(int m=0;m<l+1;m++)
 		{
-			Parallel_Reduce::reduce_double_pool( sigma(l,m) );
+            Parallel_Reduce::reduce_pool(sigma(l, m));
 		}
 	}
 
-//        Parallel_Reduce::reduce_double_pool( ehart );
+    //        Parallel_Reduce::reduce_pool( ehart );
 //        ehart *= 0.5 * GlobalC::ucell.omega;
         //psic(:)=(0.0,0.0)
 	if(is_pw&&INPUT.gamma_only)

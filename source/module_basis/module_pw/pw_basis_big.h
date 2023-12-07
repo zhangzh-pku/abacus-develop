@@ -15,15 +15,12 @@ namespace ModulePW
 class PW_Basis_Big: public PW_Basis
 {
 public:
-    
-    // combine [bx,by,bz] FFT grids into a big one
-	// typical values are bx=2, by=2, bz=2
-	// nbx=nx/bx, nby=ny/by, nbz=nz/bz, 
-    PW_Basis_Big(){
-        bx = 1;
-        by = 1;
-        bz = 1;
-    }
+  // combine [bx,by,bz] FFT grids into a big one
+  // typical values are bx=2, by=2, bz=2
+  // nbx=nx/bx, nby=ny/by, nbz=nz/bz,
+  PW_Basis_Big()
+  {
+  }
     PW_Basis_Big(std::string device_, std::string precision_) : PW_Basis(device_, precision_) {}
 
     ~PW_Basis_Big(){};
@@ -34,7 +31,7 @@ public:
         bz = bz_in;
         bxyz = bx * by * bz;
     }
-    int bx,by,bz,bxyz;
+    int bx = 1, by = 1, bz = 1, bxyz = 1;
     int nbx, nby, nbz;
     int nbzp;
     int nbxx;
@@ -109,6 +106,7 @@ public:
         //init lattice
     this->lat0 = lat0_in;
     this->latvec = latvec_in;
+    this->omega = std::abs(latvec.Det()) * lat0 * lat0 * lat0;
     this->GT = latvec.Inverse();
 	this->G  = GT.Transpose();
 	this->GGT = G * GT;
@@ -154,9 +152,9 @@ public:
                 double modulus = f * (this->GGT * f);
                 if(modulus <= this->gridecut_lat)
                 {
-                    if(n1 < abs(igx)) n1 = abs(igx);
-                    if(n2 < abs(igy)) n2 = abs(igy);
-                    if(n3 < abs(igz)) n3 = abs(igz);
+                    if(n1 < std::abs(igx)) n1 = std::abs(igx);
+                    if(n2 < std::abs(igy)) n2 = std::abs(igy);
+                    if(n3 < std::abs(igz)) n3 = std::abs(igz);
                 }
             }
         }
@@ -275,12 +273,43 @@ public:
         this->tpiba = ModuleBase::TWO_PI / this->lat0;
         this->tpiba2 = this->tpiba*this->tpiba;
         this->latvec = latvec_in;
+        this->omega = std::abs(latvec.Det()) * lat0 * lat0 * lat0;
         this->GT = latvec.Inverse();
     	this->G  = GT.Transpose();
     	this->GGT = G * GT;
         this->nx = nx_in;
         this->ny = ny_in;
         this->nz = nz_in;
+        // autoset bx/by/bz if not set in INPUT
+        if (!this->bz)
+        {
+        this->autoset_big_cell_size(this->bz, nz, this->poolnproc);
+        }
+        if (!this->bx)
+        {
+        // if cz == cx, autoset bx==bz for keeping same symmetry
+        if (nx == nz)
+        {
+            this->bx = this->bz;
+        }
+        else
+        {
+            this->autoset_big_cell_size(this->bx, nx);
+        }
+        }
+        if (!this->by)
+        {
+        // if cz == cy, autoset by==bz for keeping same symmetry
+        if (ny == nz)
+        {
+            this->by = this->bz;
+        }
+        else
+        {
+            this->autoset_big_cell_size(this->by, ny);
+        }
+        }
+        this->bxyz = this->bx * this->by * this->bz;
         if(this->nx%this->bx != 0) this->nx += (this->bx - this->nx % this->bx);
         if(this->ny%this->by != 0) this->ny += (this->by - this->ny % this->by);
         if(this->nz%this->bz != 0) this->nz += (this->bz - this->nz % this->bz);
@@ -304,7 +333,7 @@ public:
                 {
                     ++count;
                     if(count%this->poolnproc != this->poolrank) continue;
-                    if(abs(igx)<=ibox[0]-1 && abs(igy)<=ibox[1]-1 && abs(igz)<=ibox[2]-1 ) continue;
+                    if(std::abs(igx)<=ibox[0]-1 && std::abs(igy)<=ibox[1]-1 && std::abs(igz)<=ibox[2]-1 ) continue;
                     ModuleBase::Vector3<double> f;
                     f.x = igx;
                     f.y = igy;

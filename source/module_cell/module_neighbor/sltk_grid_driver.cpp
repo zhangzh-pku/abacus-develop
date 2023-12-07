@@ -7,6 +7,11 @@
 #include <omp.h>
 #endif
 
+namespace GlobalC
+{
+Grid_Driver GridD(GlobalV::test_deconstructor, GlobalV::test_grid_driver, GlobalV::test_grid);
+}
+
 Grid_Driver::Grid_Driver(
 	const int &test_d_in, 
 	const int &test_gd_in, 
@@ -357,4 +362,21 @@ std::vector<AdjacentAtomInfo> Grid_Driver::get_adjs(const UnitCell& ucell_in)
         adjs[iat] = Grid_Driver::get_adjs(ucell_in, iat);
     }
     return adjs;
+}
+
+// filter_adjs delete not adjacent atoms in adjs
+void filter_adjs(const std::vector<bool>& is_adj, AdjacentAtomInfo& adjs)
+{
+	const int size = adjs.adj_num+1;
+	for(int i = size-1; i >= 0; --i)
+	{
+		if(!is_adj[i])
+		{
+			adjs.adj_num--;
+			adjs.ntype.erase(adjs.ntype.begin()+i);
+			adjs.natom.erase(adjs.natom.begin()+i);
+			adjs.adjacent_tau.erase(adjs.adjacent_tau.begin()+i);//info of adjacent_tau is not used in future
+			adjs.box.erase(adjs.box.begin()+i);
+		}
+	}
 }

@@ -7,12 +7,11 @@
 #include "module_base/blas_connector.h"
 #include "module_base/scalapack_connector.h"
 #include "module_base/timer.h"
-#include "global_fp.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 
 #include "module_hamilt_lcao/hamilt_lcaodft/local_orbital_charge.h"
 
-void Local_Orbital_Charge::init_dm_2d()
+void Local_Orbital_Charge::init_dm_2d(const int& nks)
 {
 	if(GlobalV::GAMMA_ONLY_LOCAL)
 	{
@@ -20,7 +19,7 @@ void Local_Orbital_Charge::init_dm_2d()
 	}
 	else
 	{
-		this->dm_k.resize(GlobalC::kv.nks);
+		this->dm_k.resize(nks);
 	}
 }
 
@@ -28,19 +27,20 @@ void Local_Orbital_Charge::init_dm_2d()
 void Local_Orbital_Charge::cal_dm_R(
     std::vector<ModuleBase::ComplexMatrix> &dm_k,
     Record_adj& ra,    //ra.for_2d();
-    double** dm2d)
+    double** dm2d,
+    const K_Vectors& kv)
 {
     ModuleBase::TITLE("Local_Orbital_Charge", "cal_dm_R");
     ModuleBase::timer::tick("Local_Orbital_Charge", "cal_dm_R");
     assert(dm_k[0].nr > 0 && dm_k[0].nc > 0); //must call cal_dm first
 
-    for (int ik = 0;ik < GlobalC::kv.nks;++ik)
+    for (int ik = 0;ik < kv.nks;++ik)
     {
         // allocate memory and pointer for each ispin
         int ispin = 0;
         if (GlobalV::NSPIN == 2)
         {
-            ispin = GlobalC::kv.isk[ik];
+            ispin = kv.isk[ik];
         }
 #ifdef _OPENMP
         #pragma omp parallel for schedule(dynamic)
@@ -65,19 +65,19 @@ void Local_Orbital_Charge::cal_dm_R(
                     //-----------------
                     const std::complex<double> phase =
                         exp(ModuleBase::TWO_PI * ModuleBase::IMAG_UNIT * (
-                            GlobalC::kv.kvec_d[ik].x * ra.info[iat][cb][0] +
-                            GlobalC::kv.kvec_d[ik].y * ra.info[iat][cb][1] +
-                            GlobalC::kv.kvec_d[ik].z * ra.info[iat][cb][2]
+                            kv.kvec_d[ik].x * ra.info[iat][cb][0] +
+                            kv.kvec_d[ik].y * ra.info[iat][cb][1] +
+                            kv.kvec_d[ik].z * ra.info[iat][cb][2]
                             ));
                     for (int iw1 = 0;iw1 < GlobalC::ucell.atoms[T1].nw;++iw1)
                     {
                         int iw1_all = start1 + iw1;
-                        int mu = this->ParaV->trace_loc_row[iw1_all];
+                        int mu = this->ParaV->global2local_row(iw1_all);
                         if (mu < 0)continue;
                         for (int iw2 = 0;iw2 < GlobalC::ucell.atoms[T2].nw;++iw2)
                         {
                             int iw2_all = start2 + iw2;
-                            int nu = this->ParaV->trace_loc_col[iw2_all];
+                            int nu = this->ParaV->global2local_col(iw2_all);
                             if (nu < 0)continue;
                             //Caution: output of pzgemm_ : col first in **each** proc itself !!
                             dm2d[ispin][irrstart + count] += (dm_k[ik](nu, mu) * phase).real();

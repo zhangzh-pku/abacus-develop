@@ -1,5 +1,7 @@
 #include "module_io/input_conv.h"
 
+#include <algorithm>
+
 #include "module_base/global_function.h"
 #include "module_base/global_variable.h"
 #include "module_cell/module_symmetry/symmetry.h"
@@ -15,22 +17,24 @@
 #include "module_ri/exx_abfs-jle.h"
 #endif
 #ifdef __LCAO
+#include "module_basis/module_ao/ORB_read.h"
+#include "module_elecstate/potentials/H_TDDFT_pw.h"
 #include "module_hamilt_lcao/hamilt_lcaodft/FORCE_STRESS.h"
-#include "module_hamilt_lcao/hamilt_lcaodft/global_fp.h"
 #include "module_hamilt_lcao/hamilt_lcaodft/local_orbital_charge.h"
 #include "module_hamilt_lcao/module_dftu/dftu.h"
-#include "module_hamilt_lcao/module_tddft/ELEC_evolve.h"
-#include "module_basis/module_ao/ORB_read.h"
+#include "module_hamilt_lcao/module_tddft/evolve_elec.h"
 #endif
+
 #include "module_base/timer.h"
 #include "module_elecstate/elecstate_lcao.h"
 #include "module_elecstate/potentials/efield.h"
 #include "module_elecstate/potentials/gatefield.h"
 #include "module_hsolver/hsolver_lcao.h"
-#include "module_psi/kernels/device.h"
 #include "module_md/md_func.h"
+#include "module_psi/kernels/device.h"
 
-template <typename T> void Input_Conv::parse_expression(const std::string &fn, std::vector<T> &vec)
+template <typename T>
+void Input_Conv::parse_expression(const std::string &fn, std::vector<T> &vec)
 {
     ModuleBase::TITLE("Input_Conv", "parse_expression");
     int count = 0;
@@ -110,6 +114,75 @@ template <typename T> void Input_Conv::parse_expression(const std::string &fn, s
     regfree(&reg);
 }
 
+#ifdef __LCAO
+std::vector<double> Input_Conv::convert_units(std::string params, double c)
+{
+    std::vector<double> params_ori;
+    std::vector<double> params_out;
+    parse_expression(params, params_ori);
+    for (auto param: params_ori)
+        params_out.emplace_back(param * c);
+
+    return params_out;
+}
+
+void Input_Conv::read_td_efield()
+{
+    elecstate::H_TDDFT_pw::stype = INPUT.td_stype;
+
+    parse_expression(INPUT.td_ttype, elecstate::H_TDDFT_pw::ttype);
+
+    elecstate::H_TDDFT_pw::tstart = INPUT.td_tstart;
+    elecstate::H_TDDFT_pw::tend = INPUT.td_tend;
+
+    elecstate::H_TDDFT_pw::dt = INPUT.mdp.md_dt / ModuleBase::AU_to_FS;
+
+    // space domain parameters
+
+    // length gauge
+    elecstate::H_TDDFT_pw::lcut1 = INPUT.td_lcut1;
+    elecstate::H_TDDFT_pw::lcut2 = INPUT.td_lcut2;
+
+    // time domain parameters
+
+    // Gauss
+    elecstate::H_TDDFT_pw::gauss_omega
+        = convert_units(INPUT.td_gauss_freq, 2 * ModuleBase::PI * ModuleBase::AU_to_FS); // time(a.u.)^-1
+    elecstate::H_TDDFT_pw::gauss_phase = convert_units(INPUT.td_gauss_phase, 1.0);
+    elecstate::H_TDDFT_pw::gauss_sigma = convert_units(INPUT.td_gauss_sigma, 1 / ModuleBase::AU_to_FS);
+    elecstate::H_TDDFT_pw::gauss_t0 = convert_units(INPUT.td_gauss_t0, 1.0);
+    elecstate::H_TDDFT_pw::gauss_amp
+        = convert_units(INPUT.td_gauss_amp, ModuleBase::BOHR_TO_A / ModuleBase::Ry_to_eV); // Ry/bohr
+
+    // trapezoid
+    elecstate::H_TDDFT_pw::trape_omega
+        = convert_units(INPUT.td_trape_freq, 2 * ModuleBase::PI * ModuleBase::AU_to_FS); // time(a.u.)^-1
+    elecstate::H_TDDFT_pw::trape_phase = convert_units(INPUT.td_trape_phase, 1.0);
+    elecstate::H_TDDFT_pw::trape_t1 = convert_units(INPUT.td_trape_t1, 1.0);
+    elecstate::H_TDDFT_pw::trape_t2 = convert_units(INPUT.td_trape_t2, 1.0);
+    elecstate::H_TDDFT_pw::trape_t3 = convert_units(INPUT.td_trape_t3, 1.0);
+    elecstate::H_TDDFT_pw::trape_amp
+        = convert_units(INPUT.td_trape_amp, ModuleBase::BOHR_TO_A / ModuleBase::Ry_to_eV); // Ry/bohr
+
+    // Trigonometric
+    elecstate::H_TDDFT_pw::trigo_omega1
+        = convert_units(INPUT.td_trigo_freq1, 2 * ModuleBase::PI * ModuleBase::AU_to_FS); // time(a.u.)^-1
+    elecstate::H_TDDFT_pw::trigo_omega2
+        = convert_units(INPUT.td_trigo_freq2, 2 * ModuleBase::PI * ModuleBase::AU_to_FS); // time(a.u.)^-1
+    elecstate::H_TDDFT_pw::trigo_phase1 = convert_units(INPUT.td_trigo_phase1, 1.0);
+    elecstate::H_TDDFT_pw::trigo_phase2 = convert_units(INPUT.td_trigo_phase2, 1.0);
+    elecstate::H_TDDFT_pw::trigo_amp
+        = convert_units(INPUT.td_trigo_amp, ModuleBase::BOHR_TO_A / ModuleBase::Ry_to_eV); // Ry/bohr
+
+    // Heaviside
+    elecstate::H_TDDFT_pw::heavi_t0 = convert_units(INPUT.td_heavi_t0, 1.0);
+    elecstate::H_TDDFT_pw::heavi_amp
+        = convert_units(INPUT.td_heavi_amp, ModuleBase::BOHR_TO_A / ModuleBase::Ry_to_eV); // Ry/bohr
+
+    return;
+}
+#endif
+
 void Input_Conv::Convert(void)
 {
     ModuleBase::TITLE("Input_Conv", "Convert");
@@ -131,8 +204,17 @@ void Input_Conv::Convert(void)
     //  suffix
     if (INPUT.calculation == "md" && INPUT.mdp.md_restart) // md restart  liuyu add 2023-04-12
     {
-        int istep = MD_func::current_step(GlobalV::MY_RANK, GlobalV::global_readin_dir);
-        GlobalV::stru_file = INPUT.stru_file = GlobalV::global_stru_dir + "STRU_MD_" + std::to_string(istep);
+        int istep = 0;
+        MD_func::current_md_info(GlobalV::MY_RANK, GlobalV::global_readin_dir, istep, INPUT.mdp.md_tfirst);
+        INPUT.mdp.md_tfirst *= ModuleBase::Hartree_to_K;
+        if (INPUT.read_file_dir == "auto")
+        {
+            GlobalV::stru_file = INPUT.stru_file = GlobalV::global_stru_dir + "STRU_MD_" + std::to_string(istep);
+        }
+        else
+        {
+            GlobalV::stru_file = INPUT.stru_file = GlobalV::global_readin_dir + "STRU_MD_" + std::to_string(istep);
+        }
     }
     else if (INPUT.stru_file != "")
     {
@@ -179,7 +261,6 @@ void Input_Conv::Convert(void)
     }
     GlobalV::MIN_DIST_COEF = INPUT.min_dist_coef;
     GlobalV::NBANDS = INPUT.nbands;
-    GlobalC::wf.pw_seed = INPUT.pw_seed;
     GlobalV::NBANDS_ISTATE = INPUT.nbands_istate;
     GlobalV::device_flag = psi::device::get_device_flag(INPUT.device, INPUT.ks_solver, INPUT.basis_type);
 
@@ -213,14 +294,9 @@ void Input_Conv::Convert(void)
     GlobalV::PRESS3 = INPUT.press3;
     GlobalV::out_element_info = INPUT.out_element_info;
 #ifdef __LCAO
-    Force_Stress_LCAO::force_invalid_threshold_ev = INPUT.force_thr_ev2;
+    Force_Stress_LCAO<double>::force_invalid_threshold_ev = INPUT.force_thr_ev2;
+    Force_Stress_LCAO<std::complex<double>>::force_invalid_threshold_ev = INPUT.force_thr_ev2;
 #endif
-
-    if ((INPUT.calculation == "relax" || INPUT.calculation == "cell-relax") && INPUT.chg_extrap != "atomic")
-    {
-        std::cout << " For relaxation, charge extrapolation is set to atomic." << std::endl;
-        INPUT.chg_extrap = "atomic";
-    }
 
     BFGS_Basic::relax_bfgs_w1 = INPUT.relax_bfgs_w1;
     BFGS_Basic::relax_bfgs_w2 = INPUT.relax_bfgs_w2;
@@ -237,11 +313,13 @@ void Input_Conv::Convert(void)
     GlobalV::relax_scale_force = INPUT.relax_scale_force;
     GlobalV::relax_new = INPUT.relax_new;
 
+    GlobalV::use_paw = INPUT.use_paw;
+
     GlobalV::OUT_LEVEL = INPUT.out_level;
     Ions_Move_CG::RELAX_CG_THR = INPUT.relax_cg_thr; // pengfei add 2013-09-09
 
-    ModuleSymmetry::Symmetry::symm_flag = INPUT.symmetry; // 9
-    GlobalC::symm.epsilon = INPUT.symmetry_prec; // LiuXh add 2021-08-12, accuracy for symmetry
+    ModuleSymmetry::Symmetry::symm_flag = std::stoi(INPUT.symmetry);
+    ModuleSymmetry::Symmetry::symm_autoclose = INPUT.symmetry_autoclose;
     GlobalV::BASIS_TYPE = INPUT.basis_type;
     GlobalV::KS_SOLVER = INPUT.ks_solver;
     GlobalV::SEARCH_RADIUS = INPUT.search_radius;
@@ -250,7 +328,6 @@ void Input_Conv::Convert(void)
     //----------------------------------------------------------
     // planewave (8/8)
     //----------------------------------------------------------
-    GlobalC::sf.set(INPUT.nbspline);
     GlobalV::GAMMA_ONLY_LOCAL = INPUT.gamma_only_local;
 
     //----------------------------------------------------------
@@ -277,13 +354,8 @@ void Input_Conv::Convert(void)
     // iteration (1/3)
     //----------------------------------------------------------
     GlobalV::SCF_THR = INPUT.scf_thr;
+    GlobalV::SCF_THR_TYPE = INPUT.scf_thr_type;
 
-    //----------------------------------------------------------
-    // wavefunction / charge / potential / (2/4)
-    //----------------------------------------------------------
-    GlobalC::wf.init_wfc = INPUT.init_wfc;
-    GlobalC::wf.mem_saver = INPUT.mem_saver; // mohan add 2010-09-07
-    GlobalC::en.printe = INPUT.printe; // mohan add 2011-03-16
 #ifdef __LCAO
     if (INPUT.dft_plus_u)
     {
@@ -377,16 +449,17 @@ void Input_Conv::Convert(void)
 // Fuxiang He add 2016-10-26
 //----------------------------------------------------------
 #ifdef __LCAO
-    ELEC_evolve::td_force_dt = INPUT.td_force_dt;
-    ELEC_evolve::td_vext = INPUT.td_vext;
-    if (ELEC_evolve::td_vext)
+    module_tddft::Evolve_elec::td_force_dt = INPUT.td_force_dt;
+    module_tddft::Evolve_elec::td_vext = INPUT.td_vext;
+    if (module_tddft::Evolve_elec::td_vext)
     {
-        parse_expression(INPUT.td_vext_dire, ELEC_evolve::td_vext_dire_case);
+        parse_expression(INPUT.td_vext_dire, module_tddft::Evolve_elec::td_vext_dire_case);
     }
-    ELEC_evolve::out_dipole = INPUT.out_dipole;
-    ELEC_evolve::out_efield = INPUT.out_efield ;
-    ELEC_evolve::td_print_eij = INPUT.td_print_eij;
-    ELEC_evolve::td_edm = INPUT.td_edm;
+    module_tddft::Evolve_elec::out_dipole = INPUT.out_dipole;
+    module_tddft::Evolve_elec::out_efield = INPUT.out_efield;
+    module_tddft::Evolve_elec::td_print_eij = INPUT.td_print_eij;
+    module_tddft::Evolve_elec::td_edm = INPUT.td_edm;
+    read_td_efield();
 #endif
 
     // setting for constrained DFT, jiyy add 2020.10.11
@@ -407,10 +480,12 @@ void Input_Conv::Convert(void)
     //----------------------------------------------------------
     if (INPUT.restart_save)
     {
+        std::string dft_functional_lower = INPUT.dft_functional;
+        std::transform(INPUT.dft_functional.begin(), INPUT.dft_functional.end(), dft_functional_lower.begin(), tolower);
         GlobalC::restart.folder = GlobalV::global_readin_dir + "restart/";
         ModuleBase::GlobalFunc::MAKE_DIR(GlobalC::restart.folder);
-        if (INPUT.dft_functional == "hf" || INPUT.dft_functional == "pbe0" || INPUT.dft_functional == "hse"
-            || INPUT.dft_functional == "opt_orb" || INPUT.dft_functional == "scan0")
+        if (dft_functional_lower == "hf" || dft_functional_lower == "pbe0" || dft_functional_lower == "hse"
+            || dft_functional_lower == "opt_orb" || dft_functional_lower == "scan0")
         {
             GlobalC::restart.info_save.save_charge = true;
             GlobalC::restart.info_save.save_H = true;
@@ -422,9 +497,11 @@ void Input_Conv::Convert(void)
     }
     if (INPUT.restart_load)
     {
+        std::string dft_functional_lower = INPUT.dft_functional;
+        std::transform(INPUT.dft_functional.begin(), INPUT.dft_functional.end(), dft_functional_lower.begin(), tolower);
         GlobalC::restart.folder = GlobalV::global_readin_dir + "restart/";
-        if (INPUT.dft_functional == "hf" || INPUT.dft_functional == "pbe0" || INPUT.dft_functional == "hse"
-            || INPUT.dft_functional == "opt_orb" || INPUT.dft_functional == "scan0")
+        if (dft_functional_lower == "hf" || dft_functional_lower == "pbe0" || dft_functional_lower == "hse"
+            || dft_functional_lower == "opt_orb" || dft_functional_lower == "scan0")
         {
             GlobalC::restart.info_load.load_charge = true;
         }
@@ -446,17 +523,19 @@ void Input_Conv::Convert(void)
 #ifdef __EXX
 #ifdef __LCAO
 
-    if (INPUT.dft_functional == "hf" || INPUT.dft_functional == "pbe0" || INPUT.dft_functional == "scan0")
+    std::string dft_functional_lower = INPUT.dft_functional;
+    std::transform(INPUT.dft_functional.begin(), INPUT.dft_functional.end(), dft_functional_lower.begin(), tolower);
+    if (dft_functional_lower == "hf" || dft_functional_lower == "pbe0" || dft_functional_lower == "scan0")
     {
         GlobalC::exx_info.info_global.cal_exx = true;
         GlobalC::exx_info.info_global.ccp_type = Conv_Coulomb_Pot_K::Ccp_Type::Hf;
     }
-    else if (INPUT.dft_functional == "hse")
+    else if (dft_functional_lower == "hse")
     {
         GlobalC::exx_info.info_global.cal_exx = true;
         GlobalC::exx_info.info_global.ccp_type = Conv_Coulomb_Pot_K::Ccp_Type::Hse;
     }
-    else if (INPUT.dft_functional == "opt_orb")
+    else if (dft_functional_lower == "opt_orb")
     {
         GlobalC::exx_info.info_global.cal_exx = false;
         Exx_Abfs::Jle::generate_matrix = true;
@@ -499,9 +578,9 @@ void Input_Conv::Convert(void)
         Exx_Abfs::Jle::Ecut_exx = INPUT.exx_opt_orb_ecut;
         Exx_Abfs::Jle::tolerence = INPUT.exx_opt_orb_tolerence;
 
-        // EXX does not support any symmetry analyse, force symmetry setting to -1
-        if (INPUT.calculation != "nscf")
-            ModuleSymmetry::Symmetry::symm_flag = -1;
+        // EXX does not support symmetry=1
+        if (INPUT.calculation != "nscf" && INPUT.symmetry == "1")
+            ModuleSymmetry::Symmetry::symm_flag = 0;
     }
 #endif // __LCAO
 #endif // __EXX
@@ -517,23 +596,6 @@ void Input_Conv::Convert(void)
     // occupation (3/3)
     //----------------------------------------------------------
     Occupy::decision(INPUT.occupations, INPUT.smearing_method, INPUT.smearing_sigma);
-    //----------------------------------------------------------
-    // charge mixing(3/3)
-    //----------------------------------------------------------
-    GlobalC::CHR_MIX.set_mixing(INPUT.mixing_mode,
-                                INPUT.mixing_beta,
-                                INPUT.mixing_ndim,
-                                INPUT.mixing_gg0,
-                                INPUT.mixing_tau); // mohan modify 2014-09-27, add mixing_gg0
-    //using bandgap to auto set mixing_beta
-    if(std::abs(INPUT.mixing_beta + 10.0) < 1e-6)
-    {
-        GlobalC::CHR_MIX.need_auto_set();
-    }
-    else if(INPUT.mixing_beta > 1.0 || INPUT.mixing_beta<0.0)
-    {
-        ModuleBase::WARNING("INPUT", "You'd better set mixing_beta to [0.0, 1.0]!");
-    }
 
     //----------------------------------------------------------
     // iteration
@@ -548,15 +610,12 @@ void Input_Conv::Convert(void)
     GlobalV::OUT_FREQ_ELEC = INPUT.out_freq_elec;
     GlobalV::OUT_FREQ_ION = INPUT.out_freq_ion;
     GlobalV::init_chg = INPUT.init_chg;
+    GlobalV::init_wfc = INPUT.init_wfc;
+    GlobalV::psi_initializer = INPUT.psi_initializer;
     GlobalV::chg_extrap = INPUT.chg_extrap; // xiaohui modify 2015-02-01
     GlobalV::out_chg = INPUT.out_chg;
     GlobalV::nelec = INPUT.nelec;
     GlobalV::out_pot = INPUT.out_pot;
-    GlobalC::wf.out_wfc_pw = INPUT.out_wfc_pw;
-    GlobalC::wf.out_wfc_r = INPUT.out_wfc_r;
-    GlobalC::en.out_dos = INPUT.out_dos;
-    GlobalC::en.out_band = INPUT.out_band;
-    GlobalC::en.out_proj_band = INPUT.out_proj_band;
     GlobalV::out_app_flag = INPUT.out_app_flag;
 
     GlobalV::out_bandgap = INPUT.out_bandgap; // QO added for bandgap printing
@@ -564,26 +623,38 @@ void Input_Conv::Convert(void)
 #ifdef __LCAO
     Local_Orbital_Charge::out_dm = INPUT.out_dm;
     Local_Orbital_Charge::out_dm1 = INPUT.out_dm1;
-    hsolver::HSolverLCAO::out_mat_hs = INPUT.out_mat_hs;
-    hsolver::HSolverLCAO::out_mat_hsR = INPUT.out_mat_hs2; // LiuXh add 2019-07-16
-    hsolver::HSolverLCAO::out_mat_t = INPUT.out_mat_t;
-    hsolver::HSolverLCAO::out_mat_dh = INPUT.out_mat_dh;
-    elecstate::ElecStateLCAO::out_wfc_lcao = INPUT.out_wfc_lcao;
+    hsolver::HSolverLCAO<double>::out_mat_hs = INPUT.out_mat_hs;
+    hsolver::HSolverLCAO<double>::out_mat_hsR = INPUT.out_mat_hs2; // LiuXh add 2019-07-16
+    hsolver::HSolverLCAO<double>::out_mat_t = INPUT.out_mat_t;
+    hsolver::HSolverLCAO<double>::out_mat_dh = INPUT.out_mat_dh;
+    hsolver::HSolverLCAO<std::complex<double>>::out_mat_hs = INPUT.out_mat_hs;
+    hsolver::HSolverLCAO<std::complex<double>>::out_mat_hsR = INPUT.out_mat_hs2; // LiuXh add 2019-07-16
+    hsolver::HSolverLCAO<std::complex<double>>::out_mat_t = INPUT.out_mat_t;
+    hsolver::HSolverLCAO<std::complex<double>>::out_mat_dh = INPUT.out_mat_dh;
+    if (GlobalV::GAMMA_ONLY_LOCAL)
+    {
+        elecstate::ElecStateLCAO<double>::out_wfc_lcao = INPUT.out_wfc_lcao;
+    }
+    else if (!GlobalV::GAMMA_ONLY_LOCAL)
+    {
+        elecstate::ElecStateLCAO<std::complex<double>>::out_wfc_lcao = INPUT.out_wfc_lcao;
+    }
     if (INPUT.calculation == "nscf" && !INPUT.towannier90 && !INPUT.berry_phase)
     {
-        elecstate::ElecStateLCAO::need_psi_grid = false;
+        if (GlobalV::GAMMA_ONLY_LOCAL)
+        {
+            elecstate::ElecStateLCAO<double>::need_psi_grid = false;
+        }
+        else if (!GlobalV::GAMMA_ONLY_LOCAL)
+        {
+            elecstate::ElecStateLCAO<std::complex<double>>::need_psi_grid = false;
+        }
     }
     if (INPUT.calculation == "test_neighbour" && GlobalV::NPROC > 1)
     {
         ModuleBase::WARNING_QUIT("Input_conv", "test_neighbour must be done with 1 processor");
     }
 #endif
-
-    GlobalC::en.dos_emin_ev = INPUT.dos_emin_ev;
-    GlobalC::en.dos_emax_ev = INPUT.dos_emax_ev;
-    GlobalC::en.dos_edelta_ev = INPUT.dos_edelta_ev;
-    GlobalC::en.dos_scale = INPUT.dos_scale;
-    GlobalC::en.bcoeff = INPUT.dos_sigma;
 
     //----------------------------------------------------------
     // About LCAO
@@ -653,6 +724,25 @@ void Input_Conv::Convert(void)
     GlobalV::of_read_kernel = INPUT.of_read_kernel;
     GlobalV::of_kernel_file = INPUT.of_kernel_file;
 
+    //-----------------------------------------------
+    // Deltaspin related parameters
+    //-----------------------------------------------
+    GlobalV::sc_mag_switch = INPUT.sc_mag_switch;
+    GlobalV::decay_grad_switch = INPUT.decay_grad_switch;
+    GlobalV::sc_thr = INPUT.sc_thr;
+    GlobalV::nsc = INPUT.nsc;
+    GlobalV::nsc_min = INPUT.nsc_min;
+    GlobalV::alpha_trial = INPUT.alpha_trial;
+    GlobalV::sccut = INPUT.sccut;
+    GlobalV::sc_file = INPUT.sc_file;
+
+    // mixing parameters
+    GlobalV::MIXING_MODE = INPUT.mixing_mode;
+    GlobalV::MIXING_BETA = INPUT.mixing_beta;
+    GlobalV::MIXING_NDIM = INPUT.mixing_ndim;
+    GlobalV::MIXING_GG0 = INPUT.mixing_gg0;
+    GlobalV::MIXING_TAU = INPUT.mixing_tau;
+    
     ModuleBase::timer::tick("Input_Conv", "Convert");
     return;
 }

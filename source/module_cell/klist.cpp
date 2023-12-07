@@ -6,6 +6,9 @@
 #include "module_base/parallel_common.h"
 #include "module_base/memory.h"
 #include "module_io/berryphase.h"
+#ifdef USE_PAW
+#include "module_cell/module_paw/paw_cell.h"
+#endif
 
 K_Vectors::K_Vectors()
 {
@@ -96,8 +99,22 @@ void K_Vectors::set(
 #endif
         if (!match)
         {
-            ModuleBase::WARNING_QUIT("K_Vectors:ibz_kpoint",
-            "Symmetry operation in reciprocal lattice cannot match the equivalent k-points. Maybe a larger (coarser) `symmetry_prec` is needed?  ");
+            std::cout<< "Optimized lattice type of reciprocal lattice cannot match the optimized real lattice. " <<std::endl;
+            std::cout << "It is often because the inaccuracy of lattice parameters in STRU." << std::endl;
+            if (ModuleSymmetry::Symmetry::symm_autoclose)
+            {
+                ModuleBase::WARNING("K_Vectors::ibz_kpoint", "Automatically set symmetry to 0 and continue ...");
+                std::cout << "Automatically set symmetry to 0 and continue ..." << std::endl;
+                ModuleSymmetry::Symmetry::symm_flag = 0;
+                match = true;
+                this->ibz_kpoint(symm, ModuleSymmetry::Symmetry::symm_flag, skpt1, GlobalC::ucell, match);
+            }
+            else
+                ModuleBase::WARNING_QUIT("K_Vectors::ibz_kpoint", "Possible solutions: \n \
+1. Refine the lattice parameters in STRU;\n \
+2. Use a different`symmetry_prec`.  \n \
+3. Close symemtry: set `symmetry` to 0 in INPUT. \n \
+4. Set `symmetry_autoclose` to 1 in INPUT to automatically close symmetry when this error occurs.");
         }
         if (ModuleSymmetry::Symmetry::symm_flag || is_mp)
         {
@@ -148,6 +165,10 @@ void K_Vectors::set(
 
 	//std::cout << " NUMBER OF K-POINTS   : " << nkstot << std::endl;
 
+#ifdef USE_PAW
+    GlobalC::paw_cell.set_isk(nks,isk.data());
+#endif
+
     return;
 }
 
@@ -194,9 +215,9 @@ bool K_Vectors::read_kpoints(const std::string &fn)
         double b1 = sqrt(btmp.e11 * btmp.e11 + btmp.e12 * btmp.e12 + btmp.e13 * btmp.e13);
         double b2 = sqrt(btmp.e21 * btmp.e21 + btmp.e22 * btmp.e22 + btmp.e23 * btmp.e23);
         double b3 = sqrt(btmp.e31 * btmp.e31 + btmp.e32 * btmp.e32 + btmp.e33 * btmp.e33);
-        int nk1 = max(1,static_cast<int>(b1 * ModuleBase::TWO_PI / GlobalV::KSPACING[0] / GlobalC::ucell.lat0 + 1));
-        int nk2 = max(1,static_cast<int>(b2 * ModuleBase::TWO_PI / GlobalV::KSPACING[1] / GlobalC::ucell.lat0 + 1));
-        int nk3 = max(1,static_cast<int>(b3 * ModuleBase::TWO_PI / GlobalV::KSPACING[2] / GlobalC::ucell.lat0 + 1));
+        int nk1 = std::max(1,static_cast<int>(b1 * ModuleBase::TWO_PI / GlobalV::KSPACING[0] / GlobalC::ucell.lat0 + 1));
+        int nk2 = std::max(1,static_cast<int>(b2 * ModuleBase::TWO_PI / GlobalV::KSPACING[1] / GlobalC::ucell.lat0 + 1));
+        int nk3 = std::max(1,static_cast<int>(b3 * ModuleBase::TWO_PI / GlobalV::KSPACING[2] / GlobalC::ucell.lat0 + 1));
 
         GlobalV::ofs_warning << " Generate k-points file according to KSPACING: " << fn << std::endl;
 		std::ofstream ofs(fn.c_str());
@@ -214,7 +235,7 @@ bool K_Vectors::read_kpoints(const std::string &fn)
 		return 0;
     }
 
-    ifk >> std::setiosflags(ios::uppercase);
+    ifk >> std::setiosflags(std::ios::uppercase);
 
     ifk.clear();
     ifk.seekg(0);
@@ -473,7 +494,7 @@ bool K_Vectors::read_kpoints(const std::string &fn)
         }
     }
 
-    this->nks = this->nkstot;
+    this->nkstot_full = this->nks = this->nkstot;
 
 	ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"nkstot",nkstot);
     return 1;
@@ -504,15 +525,15 @@ void K_Vectors::Monkhorst_Pack(const int *nmp_in, const double *koffset_in, cons
     for (int x = 1;x <= mpnx;x++)
     {
         double v1 = Monkhorst_Pack_formula( k_type, koffset_in[0], x, mpnx);
-		if( abs(v1) < 1.0e-10 ) v1 = 0.0; //mohan update 2012-06-10
+		if( std::abs(v1) < 1.0e-10 ) v1 = 0.0; //mohan update 2012-06-10
         for (int y = 1;y <= mpny;y++)
         {
             double v2 = Monkhorst_Pack_formula( k_type, koffset_in[1], y, mpny);
-		    if( abs(v2) < 1.0e-10 ) v2 = 0.0;
+		    if( std::abs(v2) < 1.0e-10 ) v2 = 0.0;
             for (int z = 1;z <= mpnz;z++)
             {
                 double v3 = Monkhorst_Pack_formula( k_type, koffset_in[2], z, mpnz);
-				if( abs(v3) < 1.0e-10 ) v3 = 0.0;
+				if( std::abs(v3) < 1.0e-10 ) v3 = 0.0;
                 // index of nks kpoint
                 const int i = mpnx * mpny * (z - 1) + mpnx * (y - 1) + (x - 1);
                 kvec_d[i].set(v1, v2, v3);
@@ -536,7 +557,7 @@ void K_Vectors::update_use_ibz( void )
     ModuleBase::TITLE("K_Vectors","update_use_ibz");
     assert( nkstot_ibz > 0 );
 
-	// update nkstot
+    // update nkstot
     this->nkstot = this->nkstot_ibz;
 
 	ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"nkstot now",nkstot);
@@ -593,12 +614,37 @@ void K_Vectors::ibz_kpoint(const ModuleSymmetry::Symmetry &symm, bool use_symm,s
         int bkbrav=15;
         std::string bbrav_name;
         std::string bkbrav_name;
-        ModuleBase::Vector3<double> gb01=gb1, gb02=gb2, gb03=gb3, gk01=gk1, gk02=gk2, gk03=gk3;
+        ModuleBase::Vector3<double>gk01 = gk1, gk02 = gk2, gk03 = gk3;
+
+        ModuleBase::Matrix3 b_optlat = symm.optlat.Inverse().Transpose();
+        //search optlat after using reciprocity relation
+        ModuleBase::Vector3<double> gb01(b_optlat.e11, b_optlat.e12, b_optlat.e13);
+        ModuleBase::Vector3<double> gb02(b_optlat.e21, b_optlat.e22, b_optlat.e23);
+        ModuleBase::Vector3<double> gb03(b_optlat.e31, b_optlat.e32, b_optlat.e33);
         symm.lattice_type(gb1, gb2, gb3, gb01, gb02, gb03, b_const, b0_const, bbrav, bbrav_name, ucell, false, nullptr);
         GlobalV::ofs_running<<"(for reciprocal lattice: )"<<std::endl;
         ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"BRAVAIS TYPE", bbrav);
         ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"BRAVAIS LATTICE NAME", bbrav_name);
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"ibrav", bbrav);
+        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "ibrav", bbrav);
+        
+        // the map of bravis lattice from real to reciprocal space
+        // for example, 3(fcc) in real space matches 2(bcc) in reciprocal space
+        std::vector<int> ibrav_a2b{ 1, 3, 2, 4, 5, 6, 7, 8, 10, 9, 11, 12, 13, 14 };
+        auto ibrav_match = [&](int ibrav_b) -> bool
+        {
+            const int& ibrav_a = symm.real_brav;
+            if (ibrav_a < 1 || ibrav_a > 14) return false;
+            return (ibrav_b == ibrav_a2b[ibrav_a - 1]);
+        };
+        if (!ibrav_match(bbrav))
+        {
+            GlobalV::ofs_running << "Error: Bravais lattice type of reciprocal lattice is not compatible with that of real space lattice:" << std::endl;
+            GlobalV::ofs_running << "ibrav of real space lattice: " << symm.ilattname << std::endl;
+            GlobalV::ofs_running << "ibrav of reciprocal lattice: " << bbrav_name << std::endl;
+            GlobalV::ofs_running << "(which should be " << ibrav_a2b[symm.real_brav - 1] << ")." << std::endl;
+            match = false;
+            return;
+        }
 
         symm.lattice_type(gk1, gk2, gk3, gk01, gk02, gk03, bk_const, bk0_const, bkbrav, bkbrav_name, ucell, false, nullptr);
         GlobalV::ofs_running<<"(for k-lattice: )"<<std::endl;
@@ -608,11 +654,13 @@ void K_Vectors::ibz_kpoint(const ModuleSymmetry::Symmetry &symm, bool use_symm,s
 
         // point-group analysis of reciprocal lattice
         ModuleBase::Matrix3 bsymop[48];
-        int bnop=0;
+        int bnop = 0;
+        // search again
+        symm.lattice_type(gb1, gb2, gb3, gb1, gb2, gb3, b_const, b0_const, bbrav, bbrav_name, ucell, false, nullptr);
+        ModuleBase::Matrix3 b_optlat_new(gb1.x, gb1.y, gb1.z, gb2.x, gb2.y, gb2.z, gb3.x, gb3.y, gb3.z);
         symm.setgroup(bsymop, bnop, bbrav);
-        ModuleBase::Matrix3 b_optlat(gb1.x, gb1.y, gb1.z, gb2.x, gb2.y, gb2.z, gb3.x, gb3.y, gb3.z);
-        //symm.gmatrix_convert_int(bsymop, bsymop, bnop, b_optlat, ucell.G);
-        symm.gmatrix_convert(bsymop, bsymop, bnop, b_optlat, ucell.G);
+        symm.gmatrix_convert(bsymop, bsymop, bnop, b_optlat_new, ucell.G);
+        
         //check if all the kgmatrix are in bsymop
         auto matequal = [&symm] (ModuleBase::Matrix3 a, ModuleBase::Matrix3 b)
         {
@@ -695,9 +743,9 @@ void K_Vectors::ibz_kpoint(const ModuleSymmetry::Symmetry &symm, bool use_symm,s
         // kvec.x = fmod(kvec.x + 100 + symm.epsilon, 1) - symm.epsilon;
         // kvec.y = fmod(kvec.y + 100 + symm.epsilon, 1) - symm.epsilon;
         // kvec.z = fmod(kvec.z + 100 + symm.epsilon, 1) - symm.epsilon;
-        if(abs(kvec.x) < symm.epsilon) kvec.x = 0.0;
-        if(abs(kvec.y) < symm.epsilon) kvec.y = 0.0;
-        if(abs(kvec.z) < symm.epsilon) kvec.z = 0.0;
+        if(std::abs(kvec.x) < symm.epsilon) kvec.x = 0.0;
+        if(std::abs(kvec.y) < symm.epsilon) kvec.y = 0.0;
+        if(std::abs(kvec.z) < symm.epsilon) kvec.z = 0.0;
         return;
     };
     // for output in kpoints file
@@ -891,16 +939,16 @@ void K_Vectors::set_both_kvec(const ModuleBase::Matrix3 &G, const ModuleBase::Ma
         {
 //wrong!!   kvec_c[i] = G * kvec_d[i];
 // mohan fixed bug 2010-1-10
-			if( abs(kvec_d[i].x) < 1.0e-10 ) kvec_d[i].x = 0.0;
-			if( abs(kvec_d[i].y) < 1.0e-10 ) kvec_d[i].y = 0.0;
-			if( abs(kvec_d[i].z) < 1.0e-10 ) kvec_d[i].z = 0.0;
+			if( std::abs(kvec_d[i].x) < 1.0e-10 ) kvec_d[i].x = 0.0;
+			if( std::abs(kvec_d[i].y) < 1.0e-10 ) kvec_d[i].y = 0.0;
+			if( std::abs(kvec_d[i].z) < 1.0e-10 ) kvec_d[i].z = 0.0;
 
 			kvec_c[i] = kvec_d[i] * G;
 
 			// mohan add2012-06-10
-			if( abs(kvec_c[i].x) < 1.0e-10 ) kvec_c[i].x = 0.0;
-			if( abs(kvec_c[i].y) < 1.0e-10 ) kvec_c[i].y = 0.0;
-			if( abs(kvec_c[i].z) < 1.0e-10 ) kvec_c[i].z = 0.0;
+			if( std::abs(kvec_c[i].x) < 1.0e-10 ) kvec_c[i].x = 0.0;
+			if( std::abs(kvec_c[i].y) < 1.0e-10 ) kvec_c[i].y = 0.0;
+			if( std::abs(kvec_c[i].z) < 1.0e-10 ) kvec_c[i].z = 0.0;
         }
         kc_done = true;
     }
@@ -997,6 +1045,8 @@ void K_Vectors::mpi_k(void)
     Parallel_Common::bcast_int(nspin);
 
     Parallel_Common::bcast_int(nkstot);
+
+    Parallel_Common::bcast_int(nkstot_full);
 
     Parallel_Common::bcast_int(nmp, 3);
 
@@ -1275,16 +1325,16 @@ void K_Vectors::set_both_kvec_after_vc(const ModuleBase::Matrix3 &G, const Modul
         {
 //wrong!!   kvec_c[i] = G * kvec_d[i];
 // mohan fixed bug 2010-1-10
-			if( abs(kvec_d[i].x) < 1.0e-10 ) kvec_d[i].x = 0.0;
-			if( abs(kvec_d[i].y) < 1.0e-10 ) kvec_d[i].y = 0.0;
-			if( abs(kvec_d[i].z) < 1.0e-10 ) kvec_d[i].z = 0.0;
+			if( std::abs(kvec_d[i].x) < 1.0e-10 ) kvec_d[i].x = 0.0;
+			if( std::abs(kvec_d[i].y) < 1.0e-10 ) kvec_d[i].y = 0.0;
+			if( std::abs(kvec_d[i].z) < 1.0e-10 ) kvec_d[i].z = 0.0;
 
 			kvec_c[i] = kvec_d[i] * G;
 
 			// mohan add2012-06-10
-			if( abs(kvec_c[i].x) < 1.0e-10 ) kvec_c[i].x = 0.0;
-			if( abs(kvec_c[i].y) < 1.0e-10 ) kvec_c[i].y = 0.0;
-			if( abs(kvec_c[i].z) < 1.0e-10 ) kvec_c[i].z = 0.0;
+			if( std::abs(kvec_c[i].x) < 1.0e-10 ) kvec_c[i].x = 0.0;
+			if( std::abs(kvec_c[i].y) < 1.0e-10 ) kvec_c[i].y = 0.0;
+			if( std::abs(kvec_c[i].z) < 1.0e-10 ) kvec_c[i].z = 0.0;
         }
         kc_done = true;
     }

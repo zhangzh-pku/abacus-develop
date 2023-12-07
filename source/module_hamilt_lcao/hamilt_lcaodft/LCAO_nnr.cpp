@@ -1,5 +1,5 @@
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
-#include "module_hamilt_lcao/hamilt_lcaodft/global_fp.h"
+#include "module_cell/module_neighbor/sltk_grid_driver.h"
 #include "record_adj.h" //mohan add 2012-07-06
 #include "module_base/timer.h"
 #include "module_base/tool_threading.h"
@@ -86,8 +86,8 @@ void Grid_Technique::cal_nnrg(Parallel_Orbitals* pv)
 						if(distance < rcut - 1.0e-15)
 						{
 							//storing the indexed for nnrg
-							const int mu = pv->trace_loc_row[iat];
-							const int nu = pv->trace_loc_col[iat2];
+							const int mu = pv->global2local_row(iat);
+							const int nu = pv->global2local_col(iat2);
 							this->nnrg_index.push_back(gridIntegral::gridIndex{this->nnrg, mu, nu, GlobalC::GridD.getBox(ad), atom1->nw, atom2->nw});
 							
 							const int nelement = atom1->nw * atom2->nw;
@@ -246,13 +246,13 @@ void Grid_Technique::cal_max_box_index(void)
 			GlobalC::GridD.Find_atom(GlobalC::ucell, tau1, T1, I1);
 			for (int ad = 0; ad < GlobalC::GridD.getAdjacentNum()+1; ad++)
 			{
-				this->maxB1 = max( GlobalC::GridD.getBox(ad).x, maxB1 ); 
-				this->maxB2 = max( GlobalC::GridD.getBox(ad).y, maxB2 ); 
-				this->maxB3 = max( GlobalC::GridD.getBox(ad).z, maxB3 ); 
+				this->maxB1 = std::max( GlobalC::GridD.getBox(ad).x, maxB1 ); 
+				this->maxB2 = std::max( GlobalC::GridD.getBox(ad).y, maxB2 ); 
+				this->maxB3 = std::max( GlobalC::GridD.getBox(ad).z, maxB3 ); 
 
-				this->minB1 = min( GlobalC::GridD.getBox(ad).x, minB1 ); 
-				this->minB2 = min( GlobalC::GridD.getBox(ad).y, minB2 ); 
-				this->minB3 = min( GlobalC::GridD.getBox(ad).z, minB3 ); 
+				this->minB1 = std::min( GlobalC::GridD.getBox(ad).x, minB1 ); 
+				this->minB2 = std::min( GlobalC::GridD.getBox(ad).y, minB2 ); 
+				this->minB3 = std::min( GlobalC::GridD.getBox(ad).z, minB3 ); 
 			}
 		}
 	}
@@ -289,8 +289,9 @@ int Grid_Technique::cal_RindexAtom(const int &u1, const int &u2, const int &u3, 
 	return (iat2 + (x3 + x2 * this->nB3 + x1 * this->nB2 * this->nB3) * GlobalC::ucell.nat);
 }
 
-int Grid_Technique::binary_search_find_R2_offset(int val, int iat) {
-	auto findR2 = this->find_R2[iat];
+int Grid_Technique::binary_search_find_R2_offset(int val, int iat) const
+{
+    auto findR2 = this->find_R2[iat];
 	auto findR2_index = this->find_R2_sorted_index[iat];
 
 	int left = 0;
@@ -316,7 +317,10 @@ int Grid_Technique::binary_search_find_R2_offset(int val, int iat) {
 }
 
 // be called in LCAO_Hamilt::calculate_Hk.
-void LCAO_Matrix::folding_fixedH(const int &ik, bool cal_syns)
+void LCAO_Matrix::folding_fixedH(
+						const int &ik, 
+						const std::vector<ModuleBase::Vector3<double>>& kvec_d,
+						bool cal_syns)
 {
 	ModuleBase::TITLE("LCAO_nnr","folding_fixedH");
     ModuleBase::timer::tick("LCAO_nnr", "folding_fixedH");
@@ -345,7 +349,7 @@ void LCAO_Matrix::folding_fixedH(const int &ik, bool cal_syns)
     {
 		int beg, len;
 		ModuleBase::BLOCK_TASK_DIST_1D(num_threads, thread_id, (int)pv->nloc, 1024, beg, len);
-		ModuleBase::GlobalFunc::ZEROS(GlobalC::ld.H_V_delta_k[ik] + beg, len);
+		ModuleBase::GlobalFunc::ZEROS(GlobalC::ld.H_V_delta_k[ik].data() + beg, len);
 	}
 #endif
 
@@ -428,8 +432,8 @@ void LCAO_Matrix::folding_fixedH(const int &ik, bool cal_syns)
 					// dR is the index of box in Crystal coordinates
 					//------------------------------------------------
 					ModuleBase::Vector3<double> dR(adjs.box[ad].x, adjs.box[ad].y, adjs.box[ad].z); 
-					const double arg = ( GlobalC::kv.kvec_d[ik] * dR ) * ModuleBase::TWO_PI;
-					//const double arg = ( GlobalC::kv.kvec_d[ik] * GlobalC::GridD.getBox(ad) ) * ModuleBase::TWO_PI;
+					const double arg = ( kvec_d[ik] * dR ) * ModuleBase::TWO_PI;
+					//const double arg = ( kvec_d[ik] * GlobalC::GridD.getBox(ad) ) * ModuleBase::TWO_PI;
 					double sinp, cosp;
 					ModuleBase::libm::sincos(arg, &sinp, &cosp);
 					const std::complex<double> kphase = std::complex <double> ( cosp,  sinp );
@@ -456,12 +460,12 @@ void LCAO_Matrix::folding_fixedH(const int &ik, bool cal_syns)
 					{															\
 						/* the index of orbitals in this processor */			\
 						const int iw1_all = start + ii;							\
-						const int mu = pv->trace_loc_row[iw1_all];				\
+						const int mu = pv->global2local_row(iw1_all);				\
 						if(mu<0) {continue;}									\
 						for(int jj=0; jj<atom2->nw*GlobalV::NPOL; jj++)			\
 						{														\
 							int iw2_all = start2 + jj;							\
-							const int nu = pv->trace_loc_col[iw2_all];			\
+							const int nu = pv->global2local_col(iw2_all);			\
 							if(nu<0) {continue;}
 
 								// DO STH.

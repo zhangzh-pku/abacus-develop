@@ -10,29 +10,60 @@
 // specific operations for gamma point/multi-k calculations
 
 #include "gint_tools.h"
+#include "module_hamilt_lcao/module_hcontainer/hcontainer.h"
+#include "module_cell/module_neighbor/sltk_grid_driver.h"
 
 class Gint
 {
     public:
+
+    ~Gint();
 
     // the unified interface to grid integration
 	void cal_gint(Gint_inout *inout);
 
     // preparing FFT grid
     void prep_grid(
-        const int &nbx_in,
+        const Grid_Technique& gt,
+        const int& nbx_in,
         const int &nby_in,
         const int &nbz_in,
         const int &nbz_start_in,
-        const int& ncxyz_in);
+        const int& ncxyz_in,
+        const int& bx_in,
+        const int& by_in,
+        const int& bz_in,
+        const int& bxyz_in,
+        const int& nbxx_in,
+        const int& ny_in,
+        const int& nplane_in,
+        const int& startz_current_in);
+    
+    /**
+     * @brief calculate the neighbor atoms of each atom in this processor
+     * size of BaseMatrix with be the non-parallel version
+    */
+    void initialize_pvpR(
+        const UnitCell& unitcell,
+        Grid_Driver* gd
+    );
+    
+    /**
+     * @brief transfer DMR (2D para) to DMR (Grid para) in elecstate_lcao.cpp
+    */
+    void transfer_DM2DtoGrid(std::vector<hamilt::HContainer<double>*> DM2D);
 
+    const Grid_Technique* gridt = nullptr;
     protected:
     // variables related to FFT grid
  	int nbx;
 	int nby;
 	int nbz;
 	int ncxyz;
-	int nbz_start;
+    int nbz_start;
+    int bx, by, bz, bxyz;
+    int nbxx;
+    int ny, nplane, startz_current; // from rhopw
 
     //------------------------------------------------------
     // in gint_vl.cpp 
@@ -46,7 +77,8 @@ class Gint
         const double delta_r,
         double* vldr3,
         const int LD_pool,
-        double* pvpR_reduced);
+        double* pvpR_reduced,
+        hamilt::HContainer<double>* hR = nullptr);
 
     // calculate < phi_0 | vlocal | dphi_R >
     void gint_kernel_dvlocal(
@@ -66,7 +98,8 @@ class Gint
         double* vldr3,
         double* vkdr3,
         const int LD_pool,
-        double* pvpR_reduced);
+        double* pvpR_reduced,
+        hamilt::HContainer<double>* hR = nullptr);
 
 	void cal_meshball_vlocal_gamma(
 		const int na_grid,  						// how many atoms on this (i,j,k) grid
@@ -74,10 +107,11 @@ class Gint
 		const int*const block_iw,					// block_iw[na_grid],	index of wave functions for each block
 		const int*const block_size, 				// block_size[na_grid],	number of columns of a band
 		const int*const block_index,				// block_index[na_grid+1], count total number of atomis orbitals
-		const bool*const*const cal_flag,			// cal_flag[GlobalC::bigpw->bxyz][na_grid],	whether the atom-grid distance is larger than cutoff
-		const double*const*const psir_ylm,			// psir_ylm[GlobalC::bigpw->bxyz][LD_pool]
-		const double*const*const psir_vlbr3,		// psir_vlbr3[GlobalC::bigpw->bxyz][LD_pool]
-		double* GridVlocal);		// GridVlocal[lgd_now][lgd_now]
+		const int grid_index,                       // index of grid group, for tracing iat
+        const bool*const*const cal_flag,			// cal_flag[bxyz][na_grid],	whether the atom-grid distance is larger than cutoff
+		const double*const*const psir_ylm,			// psir_ylm[bxyz][LD_pool]
+		const double*const*const psir_vlbr3,		// psir_vlbr3[bxyz][LD_pool]
+		hamilt::HContainer<double>* hR);		// HContainer for storing the <phi_0 | V | phi_R> matrix element.
 
     void cal_meshball_vlocal_k(
         int na_grid,
@@ -101,7 +135,8 @@ class Gint
         const double delta_r,
         double* vldr3,
         const int LD_pool,
-        double**DM_R,
+        double** DM_R,
+        const int is,
         const bool isforce,
         const bool isstress,
         ModuleBase::matrix* fvl_dphi,
@@ -115,6 +150,7 @@ class Gint
         double* vkdr3,
         const int LD_pool,
         double** DM_in,
+        const int is,
         const bool isforce,
         const bool isstress,
         ModuleBase::matrix* fvl_dphi,
@@ -125,10 +161,10 @@ class Gint
         const int na_grid,  					    // how many atoms on this (i,j,k) grid
         const int*const block_size, 			    // block_size[na_grid],	number of columns of a band
         const int*const block_index,		    	// block_index[na_grid+1], count total number of atomis orbitals
-        const double*const*const psir_vlbr3_DMR,	    // psir_vlbr3[GlobalC::bigpw->bxyz][LD_pool]
-        const double*const*const dpsir_x,	    // psir_vlbr3[GlobalC::bigpw->bxyz][LD_pool]
-        const double*const*const dpsir_y,	    // psir_vlbr3[GlobalC::bigpw->bxyz][LD_pool]
-        const double*const*const dpsir_z,	    // psir_vlbr3[GlobalC::bigpw->bxyz][LD_pool]
+        const double*const*const psir_vlbr3_DMR,	    // psir_vlbr3[bxyz][LD_pool]
+        const double*const*const dpsir_x,	    // psir_vlbr3[bxyz][LD_pool]
+        const double*const*const dpsir_y,	    // psir_vlbr3[bxyz][LD_pool]
+        const double*const*const dpsir_z,	    // psir_vlbr3[bxyz][LD_pool]
         ModuleBase::matrix *force);
 
     void cal_meshball_stress(
@@ -187,6 +223,10 @@ class Gint
     // save the < phi_0i | V | phi_Rj > in sparse H matrix.
     bool pvpR_alloc_flag = false;
     double** pvpR_reduced = nullptr; //stores Hamiltonian in reduced format, for multi-l
+    hamilt::HContainer<double>* hRGint = nullptr; //stores Hamiltonian in sparse format
+    hamilt::HContainer<std::complex<double>>* hRGintCd = nullptr; //stores Hamiltonian in sparse format
+    std::vector<hamilt::HContainer<double>*> DMRGint; //stores DMR in sparse format
+    hamilt::HContainer<double>* DMRGint_full = nullptr; //tmp tools used in transfer_DM2DtoGrid
     double** pvdpRx_reduced = nullptr;
     double** pvdpRy_reduced = nullptr;
     double** pvdpRz_reduced = nullptr;

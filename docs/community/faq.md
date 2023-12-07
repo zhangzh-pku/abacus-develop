@@ -56,6 +56,9 @@ Run `/usr/bin/time -v mpirun -n 4 abacus`, and locate "Maximum resident set size
 
  The tag `smearing_sigma` is used for SCF calculation, and does not affect NSCF calculation. The tag `dos_smearing` is only used for plotting density of states, which does affect SCF or NSCF results. So `smearing_sigma` should not be set in dos calculation.
 
+**11. How to set `nbands` and `ncpus`?** 
+
+For both pw and LCAO calculations, the default value for `nbands` can be found [here](https://abacus.deepmodeling.com/en/latest/advanced/input_files/input-main.html#nbands). Note that the number of CPUs called for a parallel job (i.e., the number specified after the command `mpirun -n`) should be smaller than `nbands`, otherwise the job will fail with an error message `nbands < ncpus`. Note also that for LCAO calculations, `nbands` should always be smaller than `nlocal`, i.e., the number of the atomic orbital basis of the system. 
 
 [back to top](#frequently-asked-questions)
 
@@ -67,7 +70,7 @@ This is usually caused by overloading of CPUs' memory without specifying thread 
 
 **2. My relaxation failed. How to deal with it?**
 
-This is usually caused by the difficulty in converging charge density. Reducing charge mixing coefficient (`mixing_beta`) might help. For large systems up to hundreds of atoms, it is suggested to choose the Kerker mixing method by setting parameter "mixing_gg0" as "1.5".
+This is usually caused by the difficulty in converging charge density. Reducing charge mixing coefficient (`mixing_beta`) might help. For large systems up to hundreds of atoms, it is suggested to choose the Kerker mixing method by setting parameter "mixing_gg0" as "1.0".
 
 Sometimes, loose convergence threshold of charge density (parameter "scf_thr") will cause atomic forces not correctly enough, please set it at most "1e-7" for relaxation calculation.
 

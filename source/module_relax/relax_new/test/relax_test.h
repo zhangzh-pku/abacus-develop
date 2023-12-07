@@ -41,11 +41,11 @@ Atom::Atom(){};
 Atom::~Atom(){};
 Atom_pseudo::Atom_pseudo(){};
 Atom_pseudo::~Atom_pseudo(){};
-pseudo_nc::pseudo_nc(){};
-pseudo_nc::~pseudo_nc(){};
+pseudo::pseudo(){};
+pseudo::~pseudo(){};
 
 Structure_Factor::Structure_Factor(){};
 Structure_Factor::~Structure_Factor(){};
-void Structure_Factor::setup_structure_factor(UnitCell* Ucell, ModulePW::PW_Basis* rho_basis){};
+void Structure_Factor::setup_structure_factor(UnitCell* Ucell, const ModulePW::PW_Basis* rho_basis){};
 
 extern Input INPUT;

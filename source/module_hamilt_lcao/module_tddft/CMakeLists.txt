@@ -1,7 +1,12 @@
 if(ENABLE_LCAO)
     list(APPEND objects
-        ELEC_evolve.cpp
-        LCAO_evolve.cpp
+        evolve_elec.cpp
+        evolve_psi.cpp
+        bandenergy.cpp
+        middle_hamilt.cpp
+        norm_psi.cpp
+        propagator.cpp
+        upsi.cpp
     )
 
     add_library(
@@ -12,6 +17,10 @@ if(ENABLE_LCAO)
 
     if(ENABLE_COVERAGE)
     add_coverage(tddft)
+    endif()
+
+    IF (BUILD_TESTING)
+    add_subdirectory(test)
     endif()
 
 endif()

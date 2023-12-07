@@ -5,15 +5,18 @@
 #include "module_base/constants.h"
 #include "module_base/timer.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
+#ifdef USE_PAW
+#include "module_cell/module_paw/paw_cell.h"
+#endif
 
 double H_Ewald_pw::alpha=0.0;
 int H_Ewald_pw::mxr = 200;
-double H_Ewald_pw::ewald_energy=0.0;
-
 H_Ewald_pw::H_Ewald_pw(){};
 H_Ewald_pw::~H_Ewald_pw(){};
 
-void H_Ewald_pw::compute_ewald(const UnitCell &cell, ModulePW::PW_Basis* rho_basis)
+double H_Ewald_pw::compute_ewald(const UnitCell& cell,
+                                 const ModulePW::PW_Basis* rho_basis,
+                                 const ModuleBase::ComplexMatrix& strucFac)
 {
     ModuleBase::TITLE("H_Ewald_pw","compute_ewald");
     ModuleBase::timer::tick("H_Ewald_pw","compute_ewald");
@@ -60,7 +63,16 @@ void H_Ewald_pw::compute_ewald(const UnitCell &cell, ModulePW::PW_Basis* rho_bas
     double charge = 0.0;
     for (int it = 0;it < cell.ntype;it++)
     {
-        charge += cell.atoms[it].na * cell.atoms[it].ncpp.zv;//mohan modify 2007-11-7
+        if(GlobalV::use_paw)
+        {
+#ifdef USE_PAW
+            charge += cell.atoms[it].na * GlobalC::paw_cell.get_val(it);
+#endif
+        }
+        else
+        {
+            charge += cell.atoms[it].na * cell.atoms[it].ncpp.zv;//mohan modify 2007-11-7
+        }
     }
     if(GlobalV::test_energy)ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"Total ionic charge",charge);
 
@@ -114,9 +126,18 @@ void H_Ewald_pw::compute_ewald(const UnitCell &cell, ModulePW::PW_Basis* rho_bas
         std::complex<double> rhon = ModuleBase::ZERO;
         for (int it=0; it<cell.ntype; it++)
         {
-            rhon += static_cast<double>( cell.atoms[it].ncpp.zv ) * conj( GlobalC::sf.strucFac(it, ig));
+            if(GlobalV::use_paw)
+            {
+#ifdef USE_PAW
+                rhon += static_cast<double>(GlobalC::paw_cell.get_val(it)) * conj(strucFac(it, ig));
+#endif
+            }
+            else
+            {
+                rhon += static_cast<double>(cell.atoms[it].ncpp.zv) * conj(strucFac(it, ig));
+            }
         }
-        ewaldg += fact * abs(rhon) * abs(rhon)
+        ewaldg += fact * std::abs(rhon) * std::abs(rhon)
                   * exp(- rho_basis->gg[ig] * cell.tpiba2 / alpha / 4.0 ) / rho_basis->gg[ig] / cell.tpiba2;
     }
 
@@ -129,7 +150,17 @@ void H_Ewald_pw::compute_ewald(const UnitCell &cell, ModulePW::PW_Basis* rho_bas
 	{
     	for (int it = 0; it < cell.ntype;it++)
     	{
-        	ewaldg = ewaldg - cell.atoms[it].na * cell.atoms[it].ncpp.zv * cell.atoms[it].ncpp.zv * sqrt(8.0 / ModuleBase::TWO_PI * alpha);
+            if(GlobalV::use_paw)
+            {
+#ifdef USE_PAW
+                ewaldg = ewaldg - cell.atoms[it].na * GlobalC::paw_cell.get_val(it) 
+                    * GlobalC::paw_cell.get_val(it) * sqrt(8.0 / ModuleBase::TWO_PI * alpha);
+#endif
+            }
+            else
+            {
+                ewaldg = ewaldg - cell.atoms[it].na * cell.atoms[it].ncpp.zv * cell.atoms[it].ncpp.zv * sqrt(8.0 / ModuleBase::TWO_PI * alpha);
+            }
 		}
     }//mohan modify 2007-11-7, 2010-07-26
 
@@ -168,9 +199,18 @@ void H_Ewald_pw::compute_ewald(const UnitCell &cell, ModulePW::PW_Basis* rho_bas
                         for (nr = 0;nr < nrm;nr++)
                         {
                             rr = sqrt(r2 [nr]) * cell.lat0;
-                            ewaldr = ewaldr + cell.atoms[nt1].ncpp.zv * cell.atoms[nt2].ncpp.zv *
-                                     erfc(sqrt(alpha) * rr) / rr;
-
+                            if(GlobalV::use_paw)
+                            {
+#ifdef USE_PAW
+                                ewaldr = ewaldr + GlobalC::paw_cell.get_val(nt1) * GlobalC::paw_cell.get_val(nt2) *
+                                        erfc(sqrt(alpha) * rr) / rr;
+#endif
+                            }
+                            else
+                            {
+                                ewaldr = ewaldr + cell.atoms[nt1].ncpp.zv * cell.atoms[nt2].ncpp.zv *
+                                        erfc(sqrt(alpha) * rr) / rr;
+                            }
                         } // enddo
                         if (GlobalV::test_energy>1) ModuleBase::GlobalFunc::OUT("ewaldr",ewaldr);
                     } // enddo
@@ -182,7 +222,7 @@ void H_Ewald_pw::compute_ewald(const UnitCell &cell, ModulePW::PW_Basis* rho_bas
     ewalds = 0.50 * ModuleBase::e2 * (ewaldg + ewaldr);
 
 	// mohan fix bug 2010-07-26
-    Parallel_Reduce::reduce_double_pool( ewalds );
+    Parallel_Reduce::reduce_pool(ewalds);
 
     if (GlobalV::test_energy>1)
     {
@@ -195,11 +235,8 @@ void H_Ewald_pw::compute_ewald(const UnitCell &cell, ModulePW::PW_Basis* rho_bas
     delete[] r;
     delete[] r2;
 
-	// set the Ewald energy, mohan add 2021-02-25
-	H_Ewald_pw::ewald_energy = ewalds; 
-
     ModuleBase::timer::tick("H_Ewald_pw","compute_ewald");
-    return;
+    return ewalds;
 } // end function ewald
 
 
@@ -305,7 +342,7 @@ void H_Ewald_pw::rgen(
 
                 tt = t.x * t.x + t.y * t.y + t.z * t.z;
 
-                if (tt <= rmax * rmax && abs(tt) > 1.e-10)
+                if (tt <= rmax * rmax && std::abs(tt) > 1.e-10)
                 {
                     if (nrm > mxr)
                     {

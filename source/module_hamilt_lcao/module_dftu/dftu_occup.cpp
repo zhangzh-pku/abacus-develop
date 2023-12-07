@@ -98,12 +98,12 @@ void DFTU::zero_locale()
     ModuleBase::timer::tick("DFTU", "zero_locale");
 }
 
-void DFTU::mix_locale()
+void DFTU::mix_locale(const double& mixing_beta)
 {
     ModuleBase::TITLE("DFTU", "mix_locale");
     ModuleBase::timer::tick("DFTU", "mix_locale");
 
-    double beta = GlobalC::CHR_MIX.get_mixing_beta();
+    double beta = mixing_beta;
 
     for (int T = 0; T < GlobalC::ucell.ntype; T++)
     {
@@ -136,7 +136,11 @@ void DFTU::mix_locale()
     ModuleBase::timer::tick("DFTU", "mix_locale");
 }
 
-void DFTU::cal_occup_m_k(const int iter, std::vector<ModuleBase::ComplexMatrix> &dm_k)
+void DFTU::cal_occup_m_k(const int iter, 
+                        const std::vector<std::vector<std::complex<double>>>& dm_k,
+                        const K_Vectors& kv,
+                        const double& mixing_beta,
+                        hamilt::Hamilt<std::complex<double>>* p_ham)
 {
     ModuleBase::TITLE("DFTU", "cal_occup_m_k");
     ModuleBase::timer::tick("DFTU", "cal_occup_m_k");
@@ -151,12 +155,12 @@ void DFTU::cal_occup_m_k(const int iter, std::vector<ModuleBase::ComplexMatrix> 
     const std::complex<double> beta(0.0,0.0), alpha(1.0,0.0);
 
     std::vector<std::complex<double>> srho(this->LM->ParaV->nloc);
-    std::vector<std::complex<double>> Sk(this->LM->ParaV->nloc);
 
-    for (int ik = 0; ik < GlobalC::kv.nks; ik++)
+    for (int ik = 0; ik < kv.nks; ik++)
     {
         // srho(mu,nu) = \sum_{iw} S(mu,iw)*dm_k(iw,nu)
-        this->folding_matrix_k(ik, 0, 0, &Sk[0]);
+        this->folding_matrix_k_new(ik, p_ham);
+        std::complex<double>* s_k_pointer = this->LM->Sloc2.data();
 
 #ifdef __MPI
         pzgemm_(&transN,
@@ -165,11 +169,12 @@ void DFTU::cal_occup_m_k(const int iter, std::vector<ModuleBase::ComplexMatrix> 
                 &GlobalV::NLOCAL,
                 &GlobalV::NLOCAL,
                 &alpha,
-                &Sk[0],
+                s_k_pointer,
                 &one_int,
                 &one_int,
                 this->LM->ParaV->desc,
-                dm_k[ik].c,
+                dm_k[ik].data(),
+                //dm_k[ik].c,
                 &one_int,
                 &one_int,
                 this->LM->ParaV->desc,
@@ -180,7 +185,7 @@ void DFTU::cal_occup_m_k(const int iter, std::vector<ModuleBase::ComplexMatrix> 
                 this->LM->ParaV->desc);
 #endif
 
-        const int spin = GlobalC::kv.isk[ik];
+        const int spin = kv.isk[ik];
         for (int it = 0; it < GlobalC::ucell.ntype; it++)
         {
             const int NL = GlobalC::ucell.atoms[it].nwl + 1;
@@ -212,16 +217,16 @@ void DFTU::cal_occup_m_k(const int iter, std::vector<ModuleBase::ComplexMatrix> 
                             for (int ipol0 = 0; ipol0 < GlobalV::NPOL; ipol0++)
                             {
                                 const int iwt0 = this->iatlnmipol2iwt[iat][l][n][m0][ipol0];
-                                const int mu = this->LM->ParaV->trace_loc_row[iwt0];
-                                const int mu_prime = this->LM->ParaV->trace_loc_col[iwt0];
+                                const int mu = this->LM->ParaV->global2local_row(iwt0);
+                                const int mu_prime = this->LM->ParaV->global2local_col(iwt0);
 
                                 for (int m1 = 0; m1 < 2 * l + 1; m1++)
                                 {
                                     for (int ipol1 = 0; ipol1 < GlobalV::NPOL; ipol1++)
                                     {
                                         const int iwt1 = this->iatlnmipol2iwt[iat][l][n][m1][ipol1];
-                                        const int nu = this->LM->ParaV->trace_loc_col[iwt1];
-                                        const int nu_prime = this->LM->ParaV->trace_loc_row[iwt1];
+                                        const int nu = this->LM->ParaV->global2local_col(iwt1);
+                                        const int nu_prime = this->LM->ParaV->global2local_row(iwt1);
 
                                         const int irc = nu * this->LM->ParaV->nrow + mu;
                                         const int irc_prime = mu_prime * this->LM->ParaV->nrow + nu_prime;
@@ -331,7 +336,7 @@ void DFTU::cal_occup_m_k(const int iter, std::vector<ModuleBase::ComplexMatrix> 
 
     if(mixing_dftu && initialed_locale)
     {
-        this->mix_locale();
+        this->mix_locale(mixing_beta);
     }
 
     this->initialed_locale = true;
@@ -339,7 +344,7 @@ void DFTU::cal_occup_m_k(const int iter, std::vector<ModuleBase::ComplexMatrix> 
     return;
 }
 
-void DFTU::cal_occup_m_gamma(const int iter, std::vector<ModuleBase::matrix> &dm_gamma)
+void DFTU::cal_occup_m_gamma(const int iter, const std::vector<std::vector<double>> &dm_gamma, const double& mixing_beta)
 {
     ModuleBase::TITLE("DFTU", "cal_occup_m_gamma");
     ModuleBase::timer::tick("DFTU", "cal_occup_m_gamma");
@@ -356,6 +361,7 @@ void DFTU::cal_occup_m_gamma(const int iter, std::vector<ModuleBase::matrix> &dm
     for (int is = 0; is < GlobalV::NSPIN; is++)
     {
         // srho(mu,nu) = \sum_{iw} S(mu,iw)*dm_gamma(iw,nu)
+        double* s_gamma_pointer = this->LM->Sloc.data();
 
 #ifdef __MPI
         pdgemm_(&transN,
@@ -364,11 +370,12 @@ void DFTU::cal_occup_m_gamma(const int iter, std::vector<ModuleBase::matrix> &dm
                 &GlobalV::NLOCAL,
                 &GlobalV::NLOCAL,
                 &alpha,
-                this->LM->Sloc.data(),
+                s_gamma_pointer,
                 &one_int,
                 &one_int,
                 this->LM->ParaV->desc,
-                dm_gamma[is].c,
+                dm_gamma[is].data(),
+                //dm_gamma[is].c,
                 &one_int,
                 &one_int,
                 this->LM->ParaV->desc,
@@ -406,16 +413,16 @@ void DFTU::cal_occup_m_gamma(const int iter, std::vector<ModuleBase::matrix> &dm
                             for (int ipol0 = 0; ipol0 < GlobalV::NPOL; ipol0++)
                             {
                                 const int iwt0 = this->iatlnmipol2iwt[iat][l][n][m0][ipol0];
-                                const int mu = this->LM->ParaV->trace_loc_row[iwt0];
-                                const int mu_prime = this->LM->ParaV->trace_loc_col[iwt0];
+                                const int mu = this->LM->ParaV->global2local_row(iwt0);
+                                const int mu_prime = this->LM->ParaV->global2local_col(iwt0);
 
                                 for (int m1 = 0; m1 < 2 * l + 1; m1++)
                                 {
                                     for (int ipol1 = 0; ipol1 < GlobalV::NPOL; ipol1++)
                                     {
                                         const int iwt1 = this->iatlnmipol2iwt[iat][l][n][m1][ipol1];
-                                        const int nu = this->LM->ParaV->trace_loc_col[iwt1];
-                                        const int nu_prime = this->LM->ParaV->trace_loc_row[iwt1];
+                                        const int nu = this->LM->ParaV->global2local_col(iwt1);
+                                        const int nu_prime = this->LM->ParaV->global2local_row(iwt1);
 
                                         const int irc = nu * this->LM->ParaV->nrow + mu;
                                         const int irc_prime = mu_prime * this->LM->ParaV->nrow + nu_prime;
@@ -477,7 +484,7 @@ void DFTU::cal_occup_m_gamma(const int iter, std::vector<ModuleBase::matrix> &dm
 
     if(mixing_dftu && initialed_locale)
     {
-        this->mix_locale();
+        this->mix_locale(mixing_beta);
     }
 
     this->initialed_locale = true;

@@ -41,7 +41,8 @@ Magnetism::~Magnetism()
  *     - error==3 is currently difficult to reach in read_pseudo_vwr
  *   - ReadCellPPWarning4
  *     - read_cell_pseudopots(): dft_functional from INPUT does not match that in pseudopot file
- *     - upf.functional_error == 1
+ *   - ReadCellPPWarning5
+ *     - read_cell_pseudopots(): Unknown pseudopotential type
  *   - ReadCellPP
  *     - read_cell_pseudopots(): read pp files with flag_empty_element set
  *   - CalMeshx
@@ -75,6 +76,8 @@ Magnetism::~Magnetism()
  *     - read_pseudo(): All DFT functional must consistent.
  *   - ReadPseudoWarning2
  *     - read_pseudo(): number valence electrons > corresponding minimum possible of an element
+ *   - CalNelec: UnitCell::cal_nelec
+ *     - calculate the total number of valence electrons from psp files
  */
 
 //mock function
@@ -155,7 +158,18 @@ TEST_F(UcellDeathTest,ReadCellPPWarning4)
 	testing::internal::CaptureStdout();
 	EXPECT_NO_THROW(ucell->read_cell_pseudopots(pp_dir,ofs));
 	output = testing::internal::GetCapturedStdout();
-	EXPECT_THAT(output,testing::HasSubstr("dft_functional from INPUT does not match that in pseudopot file"));
+    EXPECT_THAT(output, testing::HasSubstr("dft_functional readin is: LDA"));
+    EXPECT_THAT(output, testing::HasSubstr("dft_functional in pseudopot file is: PBE"));
+    EXPECT_THAT(output, testing::HasSubstr("Please make sure this is what you need"));
+}
+
+TEST_F(UcellDeathTest, ReadCellPPWarning5)
+{
+    ucell->pseudo_type[0] = "upf0000";
+    testing::internal::CaptureStdout();
+    EXPECT_EXIT(ucell->read_cell_pseudopots(pp_dir, ofs), ::testing::ExitedWithCode(0), "");
+    output = testing::internal::GetCapturedStdout();
+    EXPECT_THAT(output, testing::HasSubstr("Unknown pseudopotential type."));
 }
 
 TEST_F(UcellTest,ReadCellPP)
@@ -270,10 +284,10 @@ TEST_F(UcellTest,CalNwfc1)
 	EXPECT_EQ(ucell->itia2iat(1,0), 1);
 	EXPECT_EQ(ucell->itia2iat(1,1), 2);
 	//check iat2iwt
-	EXPECT_EQ(ucell->iat2iwt.size(), 3);
-	EXPECT_EQ(ucell->iat2iwt[0], 0);
-	EXPECT_EQ(ucell->iat2iwt[1], 9);
-	EXPECT_EQ(ucell->iat2iwt[2], 18);
+	EXPECT_EQ(ucell->get_npol(), 1);
+	EXPECT_EQ(ucell->get_iat2iwt()[0], 0);
+	EXPECT_EQ(ucell->get_iat2iwt()[1], 9);
+	EXPECT_EQ(ucell->get_iat2iwt()[2], 18);
 	//check itiaiw2iwt
 	EXPECT_EQ(ucell->itiaiw2iwt(0, 0, 0), 0);
 	EXPECT_EQ(ucell->itiaiw2iwt(0, 0, 1), 1);
@@ -352,6 +366,18 @@ TEST_F(UcellDeathTest,ReadPseudoWarning2)
 	EXPECT_NO_THROW(ucell->read_pseudo(ofs));
 	output = testing::internal::GetCapturedStdout();
 	EXPECT_THAT(output,testing::HasSubstr("Warning: the number of valence electrons in pseudopotential > 3 for Al: [Ne] 3s2 3p1"));
+}
+
+TEST_F(UcellTest, CalNelec)
+{
+    ucell->read_cell_pseudopots(pp_dir, ofs);
+    EXPECT_EQ(4,ucell->atoms[0].ncpp.zv);
+    EXPECT_EQ(1,ucell->atoms[1].ncpp.zv);
+    EXPECT_EQ(1,ucell->atoms[0].na);
+    EXPECT_EQ(2,ucell->atoms[1].na);
+    double nelec = 0;
+    ucell->cal_nelec(nelec);
+    EXPECT_DOUBLE_EQ(6,nelec);
 }
 
 #ifdef __MPI

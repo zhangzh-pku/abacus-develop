@@ -1,9 +1,10 @@
 #include "module_io/write_dm_sparse.h"
-#include "module_hamilt_pw/hamilt_pwdft/global.h"
-#include "module_hamilt_lcao/hamilt_lcaodft/global_fp.h"
-#include "module_base/parallel_reduce.h"
+
 #include "module_base/blas_connector.h"
+#include "module_base/parallel_reduce.h"
 #include "module_base/timer.h"
+#include "module_cell/module_neighbor/sltk_grid_driver.h"
+#include "module_hamilt_pw/hamilt_pwdft/global.h"
 
 void ModuleIO::write_dm1(const int &is, const int &istep, double** dm2d, const Parallel_Orbitals* ParaV,
     std::map<Abfs::Vector3_Order<int>, std::map<size_t, std::map<size_t, double>>> &DMR_sparse)
@@ -89,14 +90,14 @@ void ModuleIO::get_dm_sparse(const int &is, double** dm2d, const Parallel_Orbita
                     for(int ii=0; ii<atom1->nw; ii++)
                     {
                         const int iw1_all = start + ii;
-                        const int mu = ParaV->trace_loc_row[iw1_all];
+                        const int mu = ParaV->global2local_row(iw1_all);
 
                         if(mu<0)continue;
 
                         for(int jj=0; jj<atom2->nw; jj++)
                         {
                             int iw2_all = start2 + jj;
-                            const int nu = ParaV->trace_loc_col[iw2_all];
+                            const int nu = ParaV->global2local_col(iw2_all);
 
                             if(nu<0)continue;
 
@@ -170,7 +171,7 @@ void ModuleIO::write_dm_sparse(const int &is, const int &istep, const Parallel_O
         count++;
     }
 
-    Parallel_Reduce::reduce_int_all(DMR_nonzero_num, total_R_num);
+    Parallel_Reduce::reduce_all(DMR_nonzero_num, total_R_num);
 
     for (int index = 0; index < total_R_num; ++index)
     {
@@ -195,7 +196,7 @@ void ModuleIO::write_dm_sparse(const int &is, const int &istep, const Parallel_O
     {
         if(GlobalV::CALCULATION == "md" && GlobalV::out_app_flag && step)
         {
-            g1.open(ssdm.str().c_str(), ios::app);
+            g1.open(ssdm.str().c_str(), std::ios::app);
         }
         else
         {

@@ -1,15 +1,16 @@
-#include "./esolver_sdft_pw.h"
-#include "module_hsolver/diago_iter_assist.h"
-#include "module_hsolver/hsolver_pw_sdft.h"
-#include "module_base/timer.h"
-#include "module_base/constants.h"
-#include "module_base/vector3.h"
+#include "esolver_sdft_pw.h"
+
 #include "module_base/complexmatrix.h"
-#include "module_base/global_variable.h"
+#include "module_base/constants.h"
 #include "module_base/global_function.h"
+#include "module_base/global_variable.h"
 #include "module_base/memory.h"
+#include "module_base/timer.h"
+#include "module_base/vector3.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 #include "module_hamilt_pw/hamilt_pwdft/operator_pw/velocity_pw.h"
+#include "module_hsolver/diago_iter_assist.h"
+#include "module_hsolver/hsolver_pw_sdft.h"
 
 #define TWOSQRT2LN2 2.354820045030949 //FWHM = 2sqrt(2ln2) * \sigma
 #define FACTOR 1.839939223835727e7
@@ -36,7 +37,7 @@ void ESolver_SDFT_PW::check_che(const int nche_in)
     //      Convergence test
     //------------------------------
     bool change = false;
-    const int nk = GlobalC::kv.nks;
+    const int nk = kv.nks;
     ModuleBase::Chebyshev<double> chetest(nche_in);
     Stochastic_Iter& stoiter = ((hsolver::HSolverPW_SDFT*)phsol)->stoiter;
     Stochastic_hchi& stohchi = stoiter.stohchi;
@@ -45,7 +46,7 @@ void ESolver_SDFT_PW::check_che(const int nche_in)
 	{
         this->p_hamilt->updateHk(ik);
         stoiter.stohchi.current_ik = ik;
-        const int npw = GlobalC::kv.ngk[ik];
+        const int npw = kv.ngk[ik];
         std::complex<double> *pchi = new std::complex<double> [npw];
         for(int i = 0; i < ntest ; ++i)
         {
@@ -98,15 +99,16 @@ void ESolver_SDFT_PW::sKG(const int nche_KG, const double fwhmin, const double w
 {
      ModuleBase::TITLE(this->classname,"sKG");
     ModuleBase::timer::tick(this->classname,"sKG");
-    cout<<"Calculating conductivity...."<<endl;
+    std::cout<<"Calculating conductivity...."<<std::endl;
     
     int nw = ceil(wcut/dw_in);
     double dw =  dw_in / ModuleBase::Ry_to_eV; //converge unit in eV to Ry 
     double sigma = fwhmin / TWOSQRT2LN2 / ModuleBase::Ry_to_eV;
     double dt = dt_in; //unit in a.u., 1 a.u. = 4.837771834548454e-17 s
-    int nt = ceil(sqrt(20)/sigma/dt);
-    cout<<"nw: "<<nw<<" ; dw: "<<dw*ModuleBase::Ry_to_eV<<" eV"<<endl;
-    cout<<"nt: "<<nt<<" ; dt: "<<dt<<" a.u.(ry^-1)"<<endl;
+    const double expfactor = 18.42;      //exp(-18.42) = 1e-8
+    int nt = ceil(sqrt(2*expfactor)/sigma/dt); //set nt empirically
+    std::cout<<"nw: "<<nw<<" ; dw: "<<dw*ModuleBase::Ry_to_eV<<" eV"<<std::endl;
+    std::cout<<"nt: "<<nt<<" ; dt: "<<dt<<" a.u.(ry^-1)"<<std::endl;
     assert(nw >= 1);
     assert(nt >= 1);
     const int ndim = 3;
@@ -114,16 +116,16 @@ void ESolver_SDFT_PW::sKG(const int nche_KG, const double fwhmin, const double w
     ModuleBase::Chebyshev<double> che(this->nche_sto);
     ModuleBase::Chebyshev<double> chet(nche_KG);
     ModuleBase::Chebyshev<double> chet2(nche_KG);
-    const int npwx = GlobalC::wf.npwx;
+    const int npwx = wf.npwx;
     const double tpiba = GlobalC::ucell.tpiba;
     Stochastic_Iter& stoiter = ((hsolver::HSolverPW_SDFT*)phsol)->stoiter;
     Stochastic_hchi& stohchi = stoiter.stohchi;
-    const int nk = GlobalC::kv.nks;
+    const int nk = kv.nks;
 
     //------------------------------------------------------------------
     //                    Calculate
     //------------------------------------------------------------------
-    const double mu = this->pelec->ef;
+    const double mu = this->pelec->eferm.ef;
     stoiter.stofunc.mu = mu;
     double * ct11 = new double[nt];
     double * ct12 = new double[nt];
@@ -134,11 +136,11 @@ void ESolver_SDFT_PW::sKG(const int nche_KG, const double fwhmin, const double w
     stoiter.stofunc.t = dt * nbatch;
     chet.calcoef_pair(&stoiter.stofunc, &Sto_Func<double>::ncos, &Sto_Func<double>::nsin);
     chet2.calcoef_pair(&stoiter.stofunc, &Sto_Func<double>::ncos, &Sto_Func<double>::n_sin);
-    cout<<"Relative Chebyshev precision: "<<abs(chet.coef_complex[nche_KG-1]/chet.coef_complex[0])<<endl;
-    ofstream cheofs("Chebycoef");
+    std::cout<<"Relative Chebyshev precision: "<<std::abs(chet.coef_complex[nche_KG-1]/chet.coef_complex[0])<<std::endl;
+    std::ofstream cheofs("Chebycoef");
     for(int i  = 0 ; i < nche_KG ; ++i)
     {
-        cheofs<<setw(5)<<i<<setw(20)<<abs(chet.coef_complex[i]/chet.coef_complex[0])<<endl;
+        cheofs<<std::setw(5)<<i<<std::setw(20)<<std::abs(chet.coef_complex[i]/chet.coef_complex[0])<<std::endl;
     }
     cheofs.close();
     std::complex<double>* batchcoef = nullptr;
@@ -168,7 +170,7 @@ void ESolver_SDFT_PW::sKG(const int nche_KG, const double fwhmin, const double w
     int ksbandper,startband;
     parallelks(ksbandper,startband);
     ModuleBase::timer::tick(this->classname,"kloop");
-    hamilt::Velocity velop(GlobalC::wfcpw, GlobalC::kv.isk.data(),&GlobalC::ppcell,&GlobalC::ucell, INPUT.cond_nonlocal);
+    hamilt::Velocity velop(pw_wfc, kv.isk.data(), &GlobalC::ppcell, &GlobalC::ucell, INPUT.cond_nonlocal);
     for (int ik = 0;ik < nk;++ik)
 	{
         velop.init(ik);
@@ -177,7 +179,7 @@ void ESolver_SDFT_PW::sKG(const int nche_KG, const double fwhmin, const double w
             this->p_hamilt->updateHk(ik);
         }
         stoiter.stohchi.current_ik = ik;
-        const int npw = GlobalC::kv.ngk[ik];
+        const int npw = kv.ngk[ik];
 
         int nchip = this->stowf.nchip[ik];
         int totbands_per = nchip + ksbandper;
@@ -214,7 +216,7 @@ void ESolver_SDFT_PW::sKG(const int nche_KG, const double fwhmin, const double w
         //               ks conductivity
         //-----------------------------------------------------------
         if(GlobalV::MY_STOGROUP == 0 && totbands_ks > 0)
-            jjcorr_ks(ik, nt, dt, this->pelec->wg, velop, ct11,ct12,ct22);
+            jjcorr_ks(ik, nt, dt, (wcut + 5*fwhmin) / ModuleBase::Ry_to_eV, this->pelec->wg, velop, ct11,ct12,ct22);
         
         //-----------------------------------------------------------
         //               sto conductivity
@@ -223,25 +225,25 @@ void ESolver_SDFT_PW::sKG(const int nche_KG, const double fwhmin, const double w
 
         //|psi>
         size_t memory_cost = totbands_per * npwx * sizeof(std::complex<double>);
-        psi::Psi<std::complex<double>> psi0(1,totbands_per,npwx,GlobalC::kv.ngk.data()); //|psi>
+        psi::Psi<std::complex<double>> psi0(1, totbands_per, npwx, kv.ngk.data()); //|psi>
         ModuleBase::Memory::record("SDFT::psi0", memory_cost);
-        psi::Psi<std::complex<double>> sfpsi0(1,totbands_per,npwx,GlobalC::kv.ngk.data()); //sqrt(f)|psi>
+        psi::Psi<std::complex<double>> sfpsi0(1, totbands_per, npwx, kv.ngk.data()); // sqrt(f)|psi>
         ModuleBase::Memory::record("SDFT::sfpsi0", memory_cost);
-        psi::Psi<std::complex<double>> hpsi0(1,totbands_per,npwx,GlobalC::kv.ngk.data()); //h|psi>
+        psi::Psi<std::complex<double>> hpsi0(1, totbands_per, npwx, kv.ngk.data()); // h|psi>
         ModuleBase::Memory::record("SDFT::hpsi0", memory_cost);
-        psi::Psi<std::complex<double>> hsfpsi0(1,totbands_per,npwx,GlobalC::kv.ngk.data()); //h*sqrt(f)|psi>
+        psi::Psi<std::complex<double>> hsfpsi0(1, totbands_per, npwx, kv.ngk.data()); // h*sqrt(f)|psi>
         ModuleBase::Memory::record("SDFT::hsfpsi0", memory_cost);
         //j|psi> j1=p  j2=(Hp+pH)/2 - mu*p
         memory_cost = ndim * totbands_per * npwx * sizeof(std::complex<double>);
-        psi::Psi<std::complex<double>> j1psi(1,ndim*totbands_per,npwx,GlobalC::kv.ngk.data());
+        psi::Psi<std::complex<double>> j1psi(1, ndim * totbands_per, npwx, kv.ngk.data());
         ModuleBase::Memory::record("SDFT::j1psi", memory_cost);
-        psi::Psi<std::complex<double>> j2psi(1,ndim*totbands_per,npwx,GlobalC::kv.ngk.data());
+        psi::Psi<std::complex<double>> j2psi(1, ndim * totbands_per, npwx, kv.ngk.data());
         ModuleBase::Memory::record("SDFT::j2psi", memory_cost);
         //(1-f)*j*sqrt(f)|psi>
-        psi::Psi<std::complex<double>> j1sfpsi(1,ndim*totbands_per,npwx,GlobalC::kv.ngk.data());
-        ModuleBase::Memory::record("SDFT::psi0", memory_cost);
-        psi::Psi<std::complex<double>> j2sfpsi(1,ndim*totbands_per,npwx,GlobalC::kv.ngk.data());
-        ModuleBase::Memory::record("SDFT::psi0", memory_cost);
+        psi::Psi<std::complex<double>> j1sfpsi(1, ndim * totbands_per, npwx, kv.ngk.data());
+        ModuleBase::Memory::record("SDFT::j1sfpsi", memory_cost);
+        psi::Psi<std::complex<double>> j2sfpsi(1, ndim * totbands_per, npwx, kv.ngk.data());
+        ModuleBase::Memory::record("SDFT::j2sfpsi", memory_cost);
         double* en;
         if(ksbandper > 0)   en = new double [ksbandper];
         for(int ib = 0 ; ib < ksbandper ; ++ib)
@@ -392,10 +394,10 @@ void ESolver_SDFT_PW::sKG(const int nche_KG, const double fwhmin, const double w
                 expsfpsi(ib,ig) = sfpsi0(ib,ig);
             }
         }
-        cout<<"ik="<<ik<<": ";
+        std::cout<<"ik="<<ik<<": ";
         for (int it = 1 ;it < nt ; ++it)
         {
-            if(it%20==0) cout<<it<<" ";
+            if(it%20==0) std::cout<<it<<" ";
             ModuleBase::timer::tick(this->classname,"evolution_ks");
             for(int ib = 0; ib < ksbandper; ++ib)
             {
@@ -474,6 +476,10 @@ void ESolver_SDFT_PW::sKG(const int nche_KG, const double fwhmin, const double w
             // const int dim_jmatrix = totbands_per*totbands;
             ModuleBase::ComplexMatrix j1l(ndim,dim_jmatrix), j2l(ndim,dim_jmatrix);
             ModuleBase::ComplexMatrix j1r(ndim,dim_jmatrix), j2r(ndim,dim_jmatrix);
+            ModuleBase::Memory::record("SDFT::j1l", sizeof(std::complex<double>) * ndim * dim_jmatrix);
+            ModuleBase::Memory::record("SDFT::j2l", sizeof(std::complex<double>) * ndim * dim_jmatrix);
+            ModuleBase::Memory::record("SDFT::j1r", sizeof(std::complex<double>) * ndim * dim_jmatrix);
+            ModuleBase::Memory::record("SDFT::j2r", sizeof(std::complex<double>) * ndim * dim_jmatrix);
             char transa = 'C';
             char transb = 'N';
             int totbands_per3 = ndim*totbands_per;
@@ -550,13 +556,19 @@ void ESolver_SDFT_PW::sKG(const int nche_KG, const double fwhmin, const double w
             //Im(l_ij*r_ji)=Re(i l^*_ij*r^+_ij)=Re(i l^*_i*r^+_i)
             //ddot_real = real(A^*_i * B_i)
             ModuleBase::timer::tick(this->classname,"ddot_real");
-            ct11[it] += ModuleBase::GlobalFunc::ddot_real(num_per,j1l.c+st_per,j1r.c+st_per,false) * GlobalC::kv.wk[ik] / 2,0;
-            ct12[it] -= ModuleBase::GlobalFunc::ddot_real(num_per,j1l.c+st_per,j2r.c+st_per,false) * GlobalC::kv.wk[ik] / 2,0;
-            ct22[it] += ModuleBase::GlobalFunc::ddot_real(num_per,j2l.c+st_per,j2r.c+st_per,false) * GlobalC::kv.wk[ik] / 2,0;
+            ct11[it]
+                += ModuleBase::GlobalFunc::ddot_real(num_per, j1l.c + st_per, j1r.c + st_per, false) * kv.wk[ik] / 2,
+                0;
+            ct12[it]
+                -= ModuleBase::GlobalFunc::ddot_real(num_per, j1l.c + st_per, j2r.c + st_per, false) * kv.wk[ik] / 2,
+                0;
+            ct22[it]
+                += ModuleBase::GlobalFunc::ddot_real(num_per, j2l.c + st_per, j2r.c + st_per, false) * kv.wk[ik] / 2,
+                0;
             ModuleBase::timer::tick(this->classname,"ddot_real");
             
         }
-        cout<<endl;
+        std::cout<<std::endl;
         if(ksbandper > 0)   delete[] en;
         delete poly_psi;
         delete poly_sfpsi;
@@ -587,14 +599,14 @@ void ESolver_SDFT_PW:: caldos( const int nche_dos, const double sigmain, const d
 {
     ModuleBase::TITLE(this->classname,"caldos");
     ModuleBase::timer::tick(this->classname,"caldos");
-    cout<<"========================="<<endl;
-    cout<<"###Calculating Dos....###"<<endl;
-    cout<<"========================="<<endl;
+    std::cout<<"========================="<<std::endl;
+    std::cout<<"###Calculating Dos....###"<<std::endl;
+    std::cout<<"========================="<<std::endl;
     ModuleBase::Chebyshev<double> che(nche_dos);
-    const int nk = GlobalC::kv.nks;
+    const int nk = kv.nks;
     Stochastic_Iter& stoiter = ((hsolver::HSolverPW_SDFT*)phsol)->stoiter;
     Stochastic_hchi& stohchi = stoiter.stohchi;
-    const int npwx = GlobalC::wf.npwx;
+    const int npwx = wf.npwx;
 
     double * spolyv = nullptr;
     std::complex<double> *allorderchi = nullptr;
@@ -611,16 +623,16 @@ void ESolver_SDFT_PW:: caldos( const int nche_dos, const double sigmain, const d
         allorderchi = new std::complex<double> [nchip_new * npwx * nche_dos];
     }
     ModuleBase::timer::tick(this->classname,"Tracepoly");
-    cout<<"1. TracepolyA:"<<endl;
+    std::cout<<"1. TracepolyA:"<<std::endl;
     for (int ik = 0;ik < nk;ik++)
 	{
-        cout<<"ik: "<<ik+1<<endl;
+        std::cout<<"ik: "<<ik+1<<std::endl;
 		if(nk > 1) 
         {
             this->p_hamilt->updateHk(ik);
         }
         stohchi.current_ik = ik;
-        const int npw = GlobalC::kv.ngk[ik];
+        const int npw = kv.ngk[ik];
         const int nchipk = this->stowf.nchip[ik];
         
         std::complex<double> * pchi;
@@ -633,13 +645,13 @@ void ESolver_SDFT_PW:: caldos( const int nche_dos, const double sigmain, const d
             che.tracepolyA(&stohchi, &Stochastic_hchi::hchi_norm, pchi, npw, npwx, nchipk);
             for(int i = 0 ; i < nche_dos ; ++i)
             {
-                spolyv[i] += che.polytrace[i] * GlobalC::kv.wk[ik] / 2 ;
+                spolyv[i] += che.polytrace[i] * kv.wk[ik] / 2;
             }
         }
         else
         {
             int N = nche_dos;
-            double kweight = GlobalC::kv.wk[ik] / 2;
+            double kweight = kv.wk[ik] / 2;
             char trans = 'T';
             char normal = 'N';
             double one = 1;
@@ -664,12 +676,12 @@ void ESolver_SDFT_PW:: caldos( const int nche_dos, const double sigmain, const d
     }
     if(stoiter.method == 2) delete[] allorderchi;
 
-    ofstream ofsdos;
+    std::ofstream ofsdos;
     int ndos = int((emax-emin) / de)+1;
     stoiter.stofunc.sigma = sigmain / ModuleBase::Ry_to_eV;
     ModuleBase::timer::tick(this->classname,"Tracepoly");
 
-    cout<<"2. Dos:"<<endl;
+    std::cout<<"2. Dos:"<<std::endl;
     ModuleBase::timer::tick(this->classname,"DOS Loop");
     int n10 = ndos/10;
     int percent = 10;
@@ -698,7 +710,7 @@ void ESolver_SDFT_PW:: caldos( const int nche_dos, const double sigmain, const d
                 double *en=&(this->pelec->ekb(ik, 0));
                 for(int ib = 0; ib < GlobalV::NBANDS; ++ib)
                 {
-                    tmpks += stoiter.stofunc.gauss(en[ib]) * GlobalC::kv.wk[ik] / 2 ;
+                    tmpks += stoiter.stofunc.gauss(en[ib]) * kv.wk[ik] / 2;
                 }
             }
         }
@@ -720,7 +732,7 @@ void ESolver_SDFT_PW:: caldos( const int nche_dos, const double sigmain, const d
 
         if(ie%n10 == n10 -1) 
         {
-            cout<<percent<<"%"<<" ";
+            std::cout<<percent<<"%"<<" ";
             percent+=10;
         }
         sto_dos[ie] = tmpsto;
@@ -734,22 +746,22 @@ void ESolver_SDFT_PW:: caldos( const int nche_dos, const double sigmain, const d
 #endif
     if(GlobalV::MY_RANK == 0)
     {
-        string dosfile = GlobalV::global_out_dir+"DOS1_smearing.dat";
+        std::string dosfile = GlobalV::global_out_dir+"DOS1_smearing.dat";
         ofsdos.open(dosfile.c_str());
         double maxerror = 0;
         double sum = 0; 
-        ofsdos<<setw(8)<<"## E(eV) "<<setw(20)<<"dos(eV^-1)"<<setw(20)<<"sum"<<setw(20)<<"Error(eV^-1)"<<endl;
+        ofsdos<<std::setw(8)<<"## E(eV) "<<std::setw(20)<<"dos(eV^-1)"<<std::setw(20)<<"sum"<<std::setw(20)<<"Error(eV^-1)"<<std::endl;
         for(int ie = 0 ; ie < ndos ; ++ie)
         {
-            double tmperror = 2.0 * abs(error[ie]);
+            double tmperror = 2.0 * std::abs(error[ie]);
             if(maxerror < tmperror) maxerror = tmperror;
             double dos = 2.0 * (ks_dos[ie] + sto_dos[ie]) / ModuleBase::Ry_to_eV;
             sum += dos;
-	    	ofsdos <<setw(8)<< emin + ie * de <<setw(20)<< dos <<setw(20)<< sum * de <<setw(20)<< tmperror <<endl;
+	    	ofsdos <<std::setw(8)<< emin + ie * de <<std::setw(20)<< dos <<std::setw(20)<< sum * de <<std::setw(20)<< tmperror <<std::endl;
         }
-        cout<<endl;
-        cout<<"Finish DOS"<<endl;
-        cout<<scientific<<"DOS max absolute Chebyshev Error: "<<maxerror<<endl;
+        std::cout<<std::endl;
+        std::cout<<"Finish DOS"<<std::endl;
+        std::cout<<std::scientific<<"DOS max absolute Chebyshev Error: "<<maxerror<<std::endl;
         ofsdos.close();
     }
     delete[] sto_dos;

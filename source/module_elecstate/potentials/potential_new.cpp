@@ -6,30 +6,28 @@
 #include "module_base/timer.h"
 #include "module_base/tool_quit.h"
 #include "module_base/tool_title.h"
+#ifdef USE_PAW
+#include "module_hamilt_general/module_xc/xc_functional.h"
+#include "module_cell/module_paw/paw_cell.h"
+#include "module_hamilt_pw/hamilt_pwdft/global.h"
+#endif
+#include "module_elecstate/elecstate_getters.h"
 
 #include <map>
-
-#include "H_Hartree_pw.h"
-#include "efield.h"
-#include "gatefield.h"
-#include "pot_local.h"
-#include "pot_surchem.hpp"
-#include "pot_xc.h"
-#ifdef __LCAO
-#include "H_TDDFT_pw.h"
-#endif
 
 namespace elecstate
 {
 Potential::Potential(const ModulePW::PW_Basis* rho_basis_in,
+                     const ModulePW::PW_Basis* rho_basis_smooth_in,
                      const UnitCell* ucell_in,
                      const ModuleBase::matrix* vloc_in,
-                     const ModuleBase::ComplexMatrix* structure_factors_in,
+                     Structure_Factor* structure_factors_in,
                      double* etxc_in,
                      double* vtxc_in)
     : ucell_(ucell_in), vloc_(vloc_in), structure_factors_(structure_factors_in), etxc_(etxc_in), vtxc_(vtxc_in)
 {
     this->rho_basis_ = rho_basis_in;
+    this->rho_basis_smooth_ = rho_basis_smooth_in;
     this->fixed_mode = true;
     this->dynamic_mode = true;
 
@@ -49,18 +47,18 @@ Potential::~Potential()
     }
     if (GlobalV::device_flag == "gpu") {
         if (GlobalV::precision_flag == "single") {
-            delmem_sd_op()(gpu_ctx, s_v_effective);
-            delmem_sd_op()(gpu_ctx, s_vofk_effective);
+            delmem_sd_op()(gpu_ctx, s_veff_smooth);
+            delmem_sd_op()(gpu_ctx, s_vofk_smooth);
         }
         else {
-            delmem_dd_op()(gpu_ctx, d_v_effective);
-            delmem_dd_op()(gpu_ctx, d_vofk_effective);
+            delmem_dd_op()(gpu_ctx, d_veff_smooth);
+            delmem_dd_op()(gpu_ctx, d_vofk_smooth);
         }
     }
     else {
         if (GlobalV::precision_flag == "single") {
-            delmem_sh_op()(cpu_ctx, s_v_effective);
-            delmem_sh_op()(cpu_ctx, s_vofk_effective);
+            delmem_sh_op()(cpu_ctx, s_veff_smooth);
+            delmem_sh_op()(cpu_ctx, s_vofk_smooth);
         }
     }
 }
@@ -82,51 +80,11 @@ void Potential::pot_register(std::vector<std::string>& components_list)
     //---------------------------
     // mapping for register
     //---------------------------
-    std::map<string, int> pot_register_map
-        = {
-            {"local", 1}, 
-            {"hartree", 2}, 
-            {"xc", 3}, 
-            {"surchem", 4}, 
-            {"efield", 5}, 
-            {"gatefield", 6},
-            {"tddft", 7}
-        };
     for (auto comp: components_list)
     {
-        PotBase* tmp = nullptr;
-        int key = pot_register_map[comp];
-        switch (key)
-        {
-        case 1: //"local"
-            tmp = new PotLocal(this->vloc_, this->structure_factors_, this->rho_basis_);
-            break;
-        case 2: //"hartree"
-            tmp = new PotHartree(this->rho_basis_);
-            break;
-        case 3: //"xc"
-            tmp = new PotXC(this->rho_basis_, this->etxc_, this->vtxc_, &(this->vofk_effective));
-            break;
-        case 4: //"surchem"
-            tmp = new PotSurChem(this->rho_basis_, this->v_effective_fixed.data(), &GlobalC::solvent_model);
-            break;
-        case 5: //"efield"
-            tmp = new PotEfield(this->rho_basis_, this->ucell_, GlobalV::DIP_COR_FLAG);
-            break;
-        case 6: //"gatefield"
-            tmp = new PotGate(this->rho_basis_, this->ucell_);
-            break;
-#ifdef __LCAO
-        case 7: //tddft
-            tmp = new H_TDDFT_pw(this->rho_basis_, this->ucell_);
-            break;
-#endif
-        default:
-            ModuleBase::WARNING_QUIT("Potential::Init", "Please input correct component of potential!");
-            break;
-        }
+        PotBase* tmp = this->get_pot_type(comp);
         this->components.push_back(tmp);
-//        GlobalV::ofs_running << "Successful completion of Potential's registration : " << comp << std::endl;
+        //        GlobalV::ofs_running << "Successful completion of Potential's registration : " << comp << std::endl;
     }
 
     // after register, reset fixed_done to false
@@ -139,7 +97,10 @@ void Potential::allocate()
 {
     ModuleBase::TITLE("Potential", "allocate");
     int nrxx = this->rho_basis_->nrxx;
+    int nrxx_smooth = this->rho_basis_smooth_->nrxx;
     if (nrxx == 0)
+        return;
+    if (nrxx_smooth == 0)
         return;
 
     this->v_effective_fixed.resize(nrxx);
@@ -148,29 +109,41 @@ void Potential::allocate()
     this->v_effective.create(GlobalV::NSPIN, nrxx);
     ModuleBase::Memory::record("Pot::veff", sizeof(double) * GlobalV::NSPIN * nrxx);
 
-    if (XC_Functional::get_func_type() == 3 || XC_Functional::get_func_type() == 5)
+    this->veff_smooth.create(GlobalV::NSPIN, nrxx_smooth);
+    ModuleBase::Memory::record("Pot::veff_smooth", sizeof(double) * GlobalV::NSPIN * nrxx_smooth);
+
+    if(GlobalV::use_paw)
+    {
+        this->v_xc.create(GlobalV::NSPIN, nrxx);
+        ModuleBase::Memory::record("Pot::vxc", sizeof(double) * GlobalV::NSPIN * nrxx);
+    }
+
+    if (elecstate::get_xc_func_type() == 3 || elecstate::get_xc_func_type() == 5)
     {
         this->vofk_effective.create(GlobalV::NSPIN, nrxx);
         ModuleBase::Memory::record("Pot::vofk", sizeof(double) * GlobalV::NSPIN * nrxx);
+
+        this->vofk_smooth.create(GlobalV::NSPIN, nrxx_smooth);
+        ModuleBase::Memory::record("Pot::vofk_smooth", sizeof(double) * GlobalV::NSPIN * nrxx_smooth);
     }
     if (GlobalV::device_flag == "gpu") {
         if (GlobalV::precision_flag == "single") {
-            resmem_sd_op()(gpu_ctx, s_v_effective, GlobalV::NSPIN * nrxx);
-            resmem_sd_op()(gpu_ctx, s_vofk_effective, GlobalV::NSPIN * nrxx);
+            resmem_sd_op()(gpu_ctx, s_veff_smooth, GlobalV::NSPIN * nrxx_smooth);
+            resmem_sd_op()(gpu_ctx, s_vofk_smooth, GlobalV::NSPIN * nrxx_smooth);
         }
         else {
-            resmem_dd_op()(gpu_ctx, d_v_effective, GlobalV::NSPIN * nrxx);
-            resmem_dd_op()(gpu_ctx, d_vofk_effective, GlobalV::NSPIN * nrxx);
+            resmem_dd_op()(gpu_ctx, d_veff_smooth, GlobalV::NSPIN * nrxx_smooth);
+            resmem_dd_op()(gpu_ctx, d_vofk_smooth, GlobalV::NSPIN * nrxx_smooth);
         }
     }
     else {
         if (GlobalV::precision_flag == "single") {
-            resmem_sh_op()(cpu_ctx, s_v_effective, GlobalV::NSPIN * nrxx, "POT::sveff");
-            resmem_sh_op()(cpu_ctx, s_vofk_effective, GlobalV::NSPIN * nrxx, "POT::svofk");
+            resmem_sh_op()(cpu_ctx, s_veff_smooth, GlobalV::NSPIN * nrxx_smooth, "POT::sveff_smooth");
+            resmem_sh_op()(cpu_ctx, s_vofk_smooth, GlobalV::NSPIN * nrxx_smooth, "POT::svofk_smooth");
         }
         else {
-            this->d_v_effective = this->v_effective.c;
-            this->d_vofk_effective = this->vofk_effective.c;
+            this->d_veff_smooth = this->veff_smooth.c;
+            this->d_vofk_smooth = this->vofk_smooth.c;
         }
         // There's no need to allocate memory for double precision pointers while in a CPU environment
     }
@@ -188,23 +161,68 @@ void Potential::update_from_charge(const Charge* chg, const UnitCell* ucell)
 
     this->cal_v_eff(chg, ucell, this->v_effective);
 
+    // interpolate potential on the smooth mesh if necessary
+    this->interpolate_vrs();
+
+#ifdef USE_PAW
+    if(GlobalV::use_paw)
+    {
+        this->v_xc.zero_out();
+        const std::tuple<double, double, ModuleBase::matrix> etxc_vtxc_v
+            = XC_Functional::v_xc(chg->nrxx, chg, ucell);
+        v_xc = std::get<2>(etxc_vtxc_v);
+    }
+#endif
+
     if (GlobalV::device_flag == "gpu") {
         if (GlobalV::precision_flag == "single") {
-            castmem_d2s_h2d_op()(gpu_ctx, cpu_ctx, s_v_effective, this->v_effective.c, this->v_effective.nr * this->v_effective.nc);
-            castmem_d2s_h2d_op()(gpu_ctx, cpu_ctx, s_vofk_effective, this->vofk_effective.c, this->vofk_effective.nr * this->vofk_effective.nc);
+            castmem_d2s_h2d_op()(gpu_ctx,
+                                 cpu_ctx,
+                                 s_veff_smooth,
+                                 this->veff_smooth.c,
+                                 this->veff_smooth.nr * this->veff_smooth.nc);
+            castmem_d2s_h2d_op()(gpu_ctx,
+                                 cpu_ctx,
+                                 s_vofk_smooth,
+                                 this->vofk_smooth.c,
+                                 this->vofk_smooth.nr * this->vofk_smooth.nc);
         }
         else {
-            syncmem_d2d_h2d_op()(gpu_ctx, cpu_ctx, d_v_effective, this->v_effective.c, this->v_effective.nr * this->v_effective.nc);
-            syncmem_d2d_h2d_op()(gpu_ctx, cpu_ctx, d_vofk_effective, this->vofk_effective.c, this->vofk_effective.nr * this->vofk_effective.nc);
+            syncmem_d2d_h2d_op()(gpu_ctx,
+                                 cpu_ctx,
+                                 d_veff_smooth,
+                                 this->veff_smooth.c,
+                                 this->veff_smooth.nr * this->veff_smooth.nc);
+            syncmem_d2d_h2d_op()(gpu_ctx,
+                                 cpu_ctx,
+                                 d_vofk_smooth,
+                                 this->vofk_smooth.c,
+                                 this->vofk_smooth.nr * this->vofk_smooth.nc);
         }
     }
     else {
         if (GlobalV::precision_flag == "single") {
-            castmem_d2s_h2h_op()(cpu_ctx, cpu_ctx, s_v_effective, this->v_effective.c, this->v_effective.nr * this->v_effective.nc);
-            castmem_d2s_h2h_op()(cpu_ctx, cpu_ctx, s_vofk_effective, this->vofk_effective.c, this->vofk_effective.nr * this->vofk_effective.nc);
+            castmem_d2s_h2h_op()(cpu_ctx,
+                                 cpu_ctx,
+                                 s_veff_smooth,
+                                 this->veff_smooth.c,
+                                 this->veff_smooth.nr * this->veff_smooth.nc);
+            castmem_d2s_h2h_op()(cpu_ctx,
+                                 cpu_ctx,
+                                 s_vofk_smooth,
+                                 this->vofk_smooth.c,
+                                 this->vofk_smooth.nr * this->vofk_smooth.nc);
         }
         // There's no need to synchronize memory for double precision pointers while in a CPU environment
     }
+
+#ifdef USE_PAW
+    if(GlobalV::use_paw)
+    {
+        GlobalC::paw_cell.calculate_dij(v_effective.c, v_xc.c);
+        GlobalC::paw_cell.set_dij();
+    }
+#endif
 
     ModuleBase::timer::tick("Potential", "update_from_charge");
 }
@@ -290,28 +308,66 @@ void Potential::get_vnew(const Charge* chg, ModuleBase::matrix& vnew)
     return;
 }
 
-template <>
-float * Potential::get_v_effective_data()
+void Potential::interpolate_vrs()
 {
-    return this->v_effective.nc > 0 ? this->s_v_effective : nullptr;
+    ModuleBase::TITLE("Potential", "interpolate_vrs");
+    ModuleBase::timer::tick("Potential", "interpolate_vrs");
+
+    if (GlobalV::double_grid)
+    {
+        if (rho_basis_->gamma_only != rho_basis_smooth_->gamma_only)
+        {
+            ModuleBase::WARNING_QUIT("Potential::interpolate_vrs", "gamma_only is not consistent");
+        }
+
+        ModuleBase::ComplexMatrix vrs(GlobalV::NSPIN, rho_basis_->npw);
+        for (int is = 0; is < GlobalV::NSPIN; is++)
+        {
+            rho_basis_->real2recip(&v_effective(is, 0), &vrs(is, 0));
+            rho_basis_smooth_->recip2real(&vrs(is, 0), &veff_smooth(is, 0));
+        }
+
+        if (elecstate::get_xc_func_type() == 3 || elecstate::get_xc_func_type() == 5)
+        {
+            ModuleBase::ComplexMatrix vrs_ofk(GlobalV::NSPIN, rho_basis_->npw);
+            for (int is = 0; is < GlobalV::NSPIN; is++)
+            {
+                rho_basis_->real2recip(&vofk_effective(is, 0), &vrs_ofk(is, 0));
+                rho_basis_smooth_->recip2real(&vrs_ofk(is, 0), &vofk_smooth(is, 0));
+            }
+        }
+    }
+    else
+    {
+        this->veff_smooth = this->v_effective;
+        this->vofk_smooth = this->vofk_effective;
+    }
+
+    ModuleBase::timer::tick("Potential", "interpolate_vrs");
 }
 
 template <>
-double * Potential::get_v_effective_data()
+float* Potential::get_veff_smooth_data()
 {
-    return this->v_effective.nc > 0 ? this->d_v_effective : nullptr;
+    return this->veff_smooth.nc > 0 ? this->s_veff_smooth : nullptr;
 }
 
 template <>
-float * Potential::get_vofk_effective_data()
+double* Potential::get_veff_smooth_data()
 {
-    return this->vofk_effective.nc > 0 ? this->s_vofk_effective : nullptr;
+    return this->veff_smooth.nc > 0 ? this->d_veff_smooth : nullptr;
 }
 
 template <>
-double * Potential::get_vofk_effective_data()
+float* Potential::get_vofk_smooth_data()
 {
-    return this->vofk_effective.nc > 0 ? this->d_vofk_effective : nullptr;
+    return this->vofk_smooth.nc > 0 ? this->s_vofk_smooth : nullptr;
+}
+
+template <>
+double* Potential::get_vofk_smooth_data()
+{
+    return this->vofk_smooth.nc > 0 ? this->d_vofk_smooth : nullptr;
 }
 
 } // namespace elecstate

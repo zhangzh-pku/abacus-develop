@@ -9,6 +9,9 @@
 
 // add by jingan for map<> in 2021-12-2, will be deleted in the future
 #include "module_base/abfs-vector3_order.h"
+#ifdef __EXX
+#include <RI/global/Tensor.h>
+#endif
 
 class LCAO_Matrix
 {
@@ -17,13 +20,21 @@ class LCAO_Matrix
     LCAO_Matrix();
     ~LCAO_Matrix();
 
-    void divide_HS_in_frag(const bool isGamma, Parallel_Orbitals& pv);
+    void divide_HS_in_frag(const bool isGamma, Parallel_Orbitals& pv, const int& nks);
     
     // folding the fixed Hamiltonian (T+Vnl) if
 	// k-point algorithm is used.
-	void folding_fixedH(const int &ik, bool cal_syns = false);
+	void folding_fixedH(const int &ik, 
+                        const std::vector<ModuleBase::Vector3<double>>& kvec_d, 
+                        bool cal_syns = false);
 
     Parallel_Orbitals *ParaV;
+    
+#ifdef __EXX
+    using TAC = std::pair<int, std::array<int, 3>>;
+    std::vector< std::map<int, std::map<TAC, RI::Tensor<double>>>> *Hexxd;
+    std::vector< std::map<int, std::map<TAC, RI::Tensor<std::complex<double>>>>> *Hexxc;
+#endif
 
     void allocate_HS_k(const long &nloc);
 
@@ -179,7 +190,7 @@ private:
     double* DHloc_fixed_33;
 
 
-    void set_HSgamma(const int &iw1_all, const int &iw2_all, const double &v, const char &dtype, double* HSloc);
+    void set_HSgamma(const int& iw1_all, const int& iw2_all, const double& v, double* HSloc);
     void set_HSk(const int &iw1_all, const int &iw2_all, const std::complex<double> &v, const char &dtype, const int spin = 0);
 
     void set_force (const int& iw1_all, const int& iw2_all, const double& vx, const double& vy, 

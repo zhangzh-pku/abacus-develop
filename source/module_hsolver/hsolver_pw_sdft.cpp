@@ -1,13 +1,15 @@
 #include "hsolver_pw_sdft.h"
-#include "module_base/timer.h"
+
+#include <algorithm>
+
 #include "module_base/global_function.h"
-#include "module_elecstate/module_charge/symmetry_rho.h"
 #include "module_base/timer.h"
 #include "module_base/tool_title.h"
-#include <algorithm>
+#include "module_elecstate/module_charge/symmetry_rho.h"
+
 namespace hsolver
 {
-void HSolverPW_SDFT::solve(hamilt::Hamilt<double>* pHamilt,
+void HSolverPW_SDFT::solve(hamilt::Hamilt<std::complex<double>>* pHamilt,
                            psi::Psi<std::complex<double>>& psi,
                            elecstate::ElecState* pes,
                            ModulePW::PW_Basis_K* wfc_basis,
@@ -28,7 +30,7 @@ void HSolverPW_SDFT::solve(hamilt::Hamilt<double>* pHamilt,
 
     // select the method of diagonalization
     this->method = method_in;
-    this->initDiagh();
+    this->initDiagh(psi);
 
     // part of KSDFT to get KS orbitals
     for (int ik = 0; ik < nks; ++ik)
@@ -80,7 +82,7 @@ void HSolverPW_SDFT::solve(hamilt::Hamilt<double>* pHamilt,
 		{
 			pes->psiToRho(psi);
 #ifdef __MPI
-			MPI_Bcast(&pes->eband,1, MPI_DOUBLE, 0,PARAPW_WORLD);
+            MPI_Bcast(&pes->f_en.eband, 1, MPI_DOUBLE, 0, PARAPW_WORLD);
 #endif
 		}
 		else
@@ -93,13 +95,7 @@ void HSolverPW_SDFT::solve(hamilt::Hamilt<double>* pHamilt,
 		// calculate stochastic rho
 		stoiter.sum_stoband(stowf,pes,pHamilt,wfc_basis);
 
-
-		//(6) calculate the delta_harris energy 
-		// according to new charge density.
-		// mohan add 2009-01-23
-		//en.calculate_harris();
-
-		//will do rho symmetry and energy calculation in esolver
+        //will do rho symmetry and energy calculation in esolver
         ModuleBase::timer::tick(this->classname, "solve");
         return;
     }

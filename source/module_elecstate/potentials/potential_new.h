@@ -1,11 +1,12 @@
 #ifndef POTENTIALNEW_H
 #define POTENTIALNEW_H
 
-#include "module_base/complexmatrix.h"
-#include "pot_base.h"
-#include "module_hamilt_pw/hamilt_pwdft/VNL_in_pw.h"
-
 #include <vector>
+
+#include "module_base/complexmatrix.h"
+#include "module_hamilt_pw/hamilt_pwdft/VNL_in_pw.h"
+#include "module_hamilt_pw/hamilt_pwdft/structure_factor.h"
+#include "pot_base.h"
 
 namespace elecstate
 {
@@ -19,7 +20,7 @@ namespace elecstate
  *     d. it should be called after Charge is initialized;
  *     e. it can only be called once in one SCF loop
  * 3. Func pot_register() and components
- *     a. need vector<string> for choose target potentials 
+ *     a. need vector<string> for choose target potentials
  *     b. "local", PotLocal introduces local pseudopotential part of potentials;
  *     c. "hartree", PotHartree introduces Coulombic interaction of electrons part of potentials;
  *     d. "xc", PotXC introduces exchange-correlation including meta-gga part of potentials;
@@ -33,23 +34,30 @@ namespace elecstate
  *     a. in principle, it should be added to components, but it related to real time(istep)
  *     b. it should be called after update_from_charge() as a compensation;
  * 6. Func get_vnew()
- *     a. this function is designed for a special demand: 
- *         1. update etxc and vtxc when SCF converged and 
+ *     a. this function is designed for a special demand:
+ *         1. update etxc and vtxc when SCF converged and
  *         2. use the final delta_V_eff for calculating force correction
  * 7. Func write_potential()
  * 8. Func write_elecstat_pot()
  * 9. interfaces for v_effective_fixed/v_effective/vofk_effective
-*/
+ * 10. Func interpolate_vrs()
+ *    a. interpolate v_effective on the smooth mesh
+ */
 class Potential : public PotBase
 {
   public:
     // default constructor for UT
     Potential(){};
     // In constructor, size of every potential components should be allocated
+    // rho_basis_in is the dense grids, rho_basis_smooth_in is the smooth grids in USPP
+    // charge density and potential are defined on dense grids,
+    // but effective potential needs to be interpolated on smooth grids in order to compute Veff|psi>
+    // Note: rho_basis_in and rho_basis_smooth_in are the same in NCPP
     Potential(const ModulePW::PW_Basis* rho_basis_in,
+              const ModulePW::PW_Basis* rho_basis_smooth_in,
               const UnitCell* ucell_in,
               const ModuleBase::matrix* vloc_in,
-              const ModuleBase::ComplexMatrix* structure_factors_in,
+              Structure_Factor* structure_factors_in,
               double* etxc_in,
               double* vtxc_in);
     ~Potential();
@@ -63,6 +71,8 @@ class Potential : public PotBase
     // interface for SCF-converged, etxc vtxc for Energy, vnew for force_scc
     void get_vnew(const Charge* chg, ModuleBase::matrix& vnew);
 
+    PotBase* get_pot_type(const std::string& pot_type);
+
     // interfaces to get values
     ModuleBase::matrix& get_effective_v()
     {
@@ -72,7 +82,6 @@ class Potential : public PotBase
     {
         return this->v_effective;
     }
-
 
     double* get_effective_v(int is)
     {
@@ -127,11 +136,29 @@ class Potential : public PotBase
         }
     }
 
-    template <typename FPTYPE>
-    FPTYPE* get_v_effective_data();
+    ModuleBase::matrix& get_veff_smooth()
+    {
+        return this->veff_smooth;
+    }
+    const ModuleBase::matrix& get_veff_smooth() const
+    {
+        return this->veff_smooth;
+    }
+
+    ModuleBase::matrix& get_vofk_smooth()
+    {
+        return this->vofk_smooth;
+    }
+    const ModuleBase::matrix& get_vofk_smooth() const
+    {
+        return this->vofk_smooth;
+    }
 
     template <typename FPTYPE>
-    FPTYPE* get_vofk_effective_data();
+    FPTYPE* get_veff_smooth_data();
+
+    template <typename FPTYPE>
+    FPTYPE* get_vofk_smooth_data();
 
     double* get_fixed_v()
     {
@@ -142,47 +169,24 @@ class Potential : public PotBase
         return this->v_effective_fixed.data();
     }
 
-    // interface for printing
-    //  mohan add 2011-02-28
-    //  here vh is std::complex because the array is got after std::complex FFT.
-    
-    void write_potential(
-#ifdef __MPI
-		const int& bz,
-		const int& nbz,
-		const int& nplane,
-		const int& startz_current,
-#endif
-        const int& is,
-        const int& iter,
-        const std::string& fn,
-        const int& nx,
-        const int& ny,
-        const int& nz,
-        const ModuleBase::matrix& v,
-        const int& precision,
-        const int& hartree = 0) const;
-
-    void write_elecstat_pot(
-#ifdef __MPI
-        const int& bz,
-        const int& nbz,
-#endif
-        const std::string &fn, 
-        ModulePW::PW_Basis* rho_basis, 
-        const Charge* const chr);
-
   private:
     void cal_v_eff(const Charge* chg, const UnitCell* ucell, ModuleBase::matrix& v_eff) override;
     void cal_fixed_v(double* vl_pseudo) override;
+    // interpolate potential on the smooth mesh if necessary
+    void interpolate_vrs();
 
     void allocate();
 
     std::vector<double> v_effective_fixed;
     ModuleBase::matrix v_effective;
 
-    float * s_v_effective = nullptr, * s_vofk_effective = nullptr;
-    double * d_v_effective = nullptr, * d_vofk_effective = nullptr;
+    ModuleBase::matrix veff_smooth; // used in uspp liuyu 2023-10-12
+    ModuleBase::matrix vofk_smooth; // used in uspp liuyu 2023-10-12
+
+    ModuleBase::matrix v_xc; // if PAW is used, vxc must be stored separately
+
+    float *s_veff_smooth = nullptr, *s_vofk_smooth = nullptr;
+    double *d_veff_smooth = nullptr, *d_vofk_smooth = nullptr;
 
     ModuleBase::matrix vofk_effective;
 
@@ -196,7 +200,7 @@ class Potential : public PotBase
 
     const UnitCell* ucell_ = nullptr;
     const ModuleBase::matrix* vloc_ = nullptr;
-    const ModuleBase::ComplexMatrix* structure_factors_ = nullptr;
+    Structure_Factor* structure_factors_ = nullptr;
 };
 
 } // namespace elecstate

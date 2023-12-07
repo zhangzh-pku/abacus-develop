@@ -2,9 +2,11 @@
 #define RELAX_DRIVER_H
 
 #include "module_esolver/esolver.h"
+#include "module_esolver/esolver_ks.h"
 #include "relax_new/relax.h"
 #include "relax_old/relax_old.h"
 
+template<typename FPTYPE, typename Device = psi::DEVICE_CPU>
 class Relax_Driver
 {
 
@@ -17,7 +19,8 @@ class Relax_Driver
   private:
     // mohan add 2021-01-28
     // mohan moved this variable from electrons.h to relax_driver.h
-    int istep;
+    int istep = 0;
+    double etot = 0;
 
     // new relaxation method
     Relax rl;

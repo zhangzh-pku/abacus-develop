@@ -25,7 +25,7 @@ file=$1
 #echo $1
 calculation=`grep calculation INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
 running_path=`echo "OUT.autotest/running_$calculation"".log"`
-natom=`grep -En '(^|[[:space:]])TOTAL ATOM NUMBER($|[[:space:]])' $running_path | awk '{print $6}'`
+natom=`grep -En '(^|[[:space:]])TOTAL ATOM NUMBER($|[[:space:]])' $running_path | tail -1 | awk '{print $6}'`
 has_force=`grep -En '(^|[[:space:]])cal_force($|[[:space:]])' INPUT | awk '{print $2}'`
 has_stress=`grep -En '(^|[[:space:]])cal_stress($|[[:space:]])' INPUT | awk '{print $2}'`
 has_dftu=`grep -En '(^|[[:space:]])dft_plus_u($|[[:space:]])' INPUT | awk '{print $2}'`
@@ -38,6 +38,7 @@ has_r=`grep -En '(^|[[:space:]])out_mat_r($|[[:space:]])' INPUT | awk '{print $2
 deepks_out_labels=`grep deepks_out_labels INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
 deepks_bandgap=`grep deepks_bandgap INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
 has_lowf=`grep out_wfc_lcao INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
+out_app_flag=`grep out_app_flag INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
 has_wfc_r=`grep out_wfc_r INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
 has_wfc_pw=`grep out_wfc_pw INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
 out_dm=`grep "out_dm " INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
@@ -51,16 +52,22 @@ get_s=`grep calculation INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
 out_pband=`grep out_proj_band INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
 toW90=`grep towannier90 INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
 has_mat_r=`grep out_mat_r INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
+has_mat_t=`grep out_mat_t INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
+has_mat_dh=`grep out_mat_dh INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
+has_scan=`grep dft_functional INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
+out_chg=`grep out_chg INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
 #echo $running_path
 base=`grep -En '(^|[[:space:]])basis_type($|[[:space:]])' INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
 word="driver_line"
+symmetry=`grep "symmetry" INPUT | awk '{print $2}' | sed s/[[:space:]]//g`
 test -e $1 && rm $1
 #--------------------------------------------
 # if NOT non-self-consistent calculations
 #--------------------------------------------
-if [ $calculation != "nscf" ] && [ $calculation != "ienvelope" ]\
-&& [ $calculation != "istate" ] && [ $calculation != "get_S" ]; then
-	etot=`grep ETOT_ $running_path | awk '{print $2}'`
+if [ $calculation != "nscf" ] && [ $calculation != "get_wf" ]\
+&& [ $calculation != "get_pchg" ] && [ $calculation != "get_S" ]; then
+	#etot=`grep ETOT_ $running_path | awk '{print $2}'` 
+	etot=$(grep "ETOT_" "$running_path" | tail -1 | awk '{print $2}')
 	etotperatom=`awk 'BEGIN {x='$etot';y='$natom';printf "%.10f\n",x/y}'`
 	echo "etotref $etot" >>$1
 	echo "etotperatomref $etotperatom" >>$1
@@ -70,7 +77,7 @@ fi
 #echo $etot
 #echo "hasforce:"$has_force
 if ! test -z "$has_force" && [ $has_force == 1 ]; then
-	nn3=`echo "$natom + 4" |bc`
+	nn3=`echo "$natom + 1" |bc`
 	#nn1=`echo "$natom + 1" |bc`
 	#nn5=`echo "$natom + 6" |bc`
 	#grep -A$nn3 "TOTAL-FORCE" $running_path|sed '1,5d'|sed ''$nn1','$nn5'd'|awk '{printf $2"\t"$3"\t"$4"\n"}' > force.txt
@@ -84,7 +91,7 @@ fi
 #echo "has_stress:"$has_stress
 if ! test -z "$has_stress" && [  $has_stress == 1 ]; then
 	#grep -A6 "TOTAL-STRESS" $running_path|sed '1,4d'|sed '4,8d' >stress.txt
-    grep -A6 "TOTAL-STRESS" $running_path| awk 'NF==3' | tail -3> stress.txt
+    grep -A4 "TOTAL-STRESS" $running_path| awk 'NF==3' | tail -3> stress.txt
 	total_stress=`sum_file stress.txt`
 	rm stress.txt
 	echo "totalstressref $total_stress" >>$1
@@ -127,7 +134,7 @@ fi
 if ! test -z "$out_pot"  && [  $out_pot == 1 ]; then
 	pot1ref=refSPIN1_POT.cube
 	pot1cal=OUT.autotest/SPIN1_POT.cube
-	python3 ../tools/CompareFile.py $pot1ref $pot1cal 8
+	python3 ../tools/CompareFile.py $pot1ref $pot1cal 3
 	echo "ComparePot1_pass $?" >>$1
 fi
 
@@ -163,11 +170,16 @@ fi
 if ! test -z "$toW90"  && [  $toW90 == 1 ]; then
 	amnref=diamond.amn
 	amncal=OUT.autotest/diamond.amn
+	mmnref=diamond.mmn
+	mmncal=OUT.autotest/diamond.mmn
 	eigref=diamond.eig
 	eigcal=OUT.autotest/diamond.eig
 	sed -i '1d' $amncal
-	python3 ../tools/CompareFile.py $amnref $amncal 1
+	sed -i '1d' $mmncal
+	python3 ../tools/CompareFile.py $amnref $amncal 1 -abs 8
 	echo "CompareAMN_pass $?" >>$1
+	python3 ../tools/CompareFile.py $mmnref $mmncal 1 -abs 8
+	echo "CompareMMN_pass $?" >>$1
 	python3 ../tools/CompareFile.py $eigref $eigcal 8
 	echo "CompareEIG_pass $?" >>$1
 fi
@@ -194,7 +206,7 @@ if ! test -z "$has_hs"  && [  $has_hs == 1 ]; then
                 scal=OUT.autotest/data-1-S
         fi
 
-        python3 ../tools/CompareFile.py $href $hcal 8
+        python3 ../tools/CompareFile.py $href $hcal 6
     echo "CompareH_pass $?" >>$1
     python3 ../tools/CompareFile.py $sref $scal 8
     echo "CompareS_pass $?" >>$1
@@ -214,6 +226,31 @@ if ! test -z "$has_mat_r"  && [  $has_mat_r == 1 ]; then
     echo "ComparerR_pass $?" >>$1
 fi
 
+#echo $has_mat_t
+if ! test -z "$has_mat_t"  && [  $has_mat_t == 1 ]; then
+    python3 ../tools/CompareFile.py data-TR-sparse_SPIN0.csr.ref OUT.autotest/data-TR-sparse_SPIN0.csr 8
+    echo "ComparerTR_pass $?" >>$1
+fi
+
+#echo $has_mat_dh
+if ! test -z "$has_mat_dh"  && [  $has_mat_dh == 1 ]; then
+    python3 ../tools/CompareFile.py data-dHRx-sparse_SPIN0.csr.ref OUT.autotest/data-dHRx-sparse_SPIN0.csr 8
+    echo "ComparerdHRx_pass $?" >>$1
+    python3 ../tools/CompareFile.py data-dHRy-sparse_SPIN0.csr.ref OUT.autotest/data-dHRy-sparse_SPIN0.csr 8
+    echo "ComparerdHRy_pass $?" >>$1
+    python3 ../tools/CompareFile.py data-dHRz-sparse_SPIN0.csr.ref OUT.autotest/data-dHRz-sparse_SPIN0.csr 8
+    echo "ComparerdHRz_pass $?" >>$1
+fi
+
+#echo $has_scan
+if ! test -z "$has_scan"  && [  $has_scan == "scan" ] && \
+       ! test -z "$out_chg" && [ $out_chg == 1 ]; then
+    python3 ../tools/CompareFile.py SPIN1_CHG.cube.ref OUT.autotest/SPIN1_CHG.cube 8
+    echo "SPIN1_CHG.cube_pass $?" >>$1
+    python3 ../tools/CompareFile.py SPIN1_TAU.cube.ref OUT.autotest/SPIN1_TAU.cube 8
+    echo "SPIN1_TAU.cube_pass $?" >>$1
+fi
+
 # echo "$has_wfc_r" ## test out_wfc_r > 0
 if ! test -z "$has_wfc_r"  && [ $has_wfc_r == 1 ]; then
 	if [[ ! -f OUT.autotest/running_scf.log ]];then
@@ -221,7 +258,7 @@ if ! test -z "$has_wfc_r"  && [ $has_wfc_r == 1 ]; then
 		exit 1
 	fi
 	nband=$(grep NBANDS OUT.autotest/running_scf.log|awk '{print $3}')
-	allgrid=$(grep "fft grid for wave functions" OUT.autotest/running_scf.log|awk -F "[=,]" '{print $2*$3*$4}')
+allgrid=$(grep "fft grid for wave functions" OUT.autotest/running_scf.log | awk -F "[=,\\\[\\\]]" '{print $3*$4*$5}')
 	for((band=0;band<$nband;band++));do
 		if [[ -f "OUT.autotest/wfc_realspace/wfc_realspace_0_$band" ]];then
 			variance_wfc_r=`sed -n "13,$"p OUT.autotest/wfc_realspace/wfc_realspace_0_$band | \
@@ -259,9 +296,14 @@ fi
 # echo "$has_lowf" ## test out_wfc_lcao > 0
 if ! test -z "$has_lowf"  && [ $has_lowf == 1 ]; then
 	if ! test -z "$gamma_only"  && [ $gamma_only == 1 ]; then
-		wfc_cal=OUT.autotest/LOWF_GAMMA_S1.dat
-		wfc_ref=LOWF_GAMMA_S1.dat.ref	
+		wfc_cal=OUT.autotest/LOWF_GAMMA_S1.txt
+		wfc_ref=LOWF_GAMMA_S1.txt.ref	
 	else
+		if ! test -z "$out_app_flag"  && [ $out_app_flag == 0 ]; then
+			wfc_name=10_LOWF_K_1
+		else
+			wfc_name=LOWF_K_2
+		fi
 		awk 'BEGIN {flag=999}
     	{
         	if($2 == "(band)") {flag=2;print $0}
@@ -273,9 +315,9 @@ if ! test -z "$has_lowf"  && [ $has_lowf == 1 ]; then
             	printf "\n"
         	}	
         	else {print $0}
-    	}' OUT.autotest/LOWF_K_2.dat > OUT.autotest/LOWF_K_2_mod.dat
-		wfc_cal=OUT.autotest/LOWF_K_2_mod.dat
-		wfc_ref=LOWF_K_2_mod.dat.ref
+    	}' OUT.autotest/"$wfc_name".txt > OUT.autotest/"$wfc_name"_mod.txt
+		wfc_cal=OUT.autotest/"$wfc_name"_mod.txt
+		wfc_ref="$wfc_name"_mod.txt.ref
 	fi
 
 	python3 ../tools/CompareFile.py $wfc_cal $wfc_ref 8 -abs 1
@@ -314,7 +356,7 @@ if ! test -z "$out_mul"  && [ $out_mul == 1 ]; then
 	echo "Compare_mulliken_pass $?" >>$1
 fi
 
-if [ $calculation == "ienvelope" ]; then
+if [ $calculation == "get_wf" ]; then
 	nfile=0
 	# envfiles=`ls OUT.autotest/ | grep ENV$`
 	# if test -z "$envfiles"; then
@@ -341,7 +383,7 @@ if [ $calculation == "ienvelope" ]; then
 	fi
 fi
 
-if [ $calculation == "istate" ]; then
+if [ $calculation == "get_pchg" ]; then
 	nfile=0
 	# chgfiles=`ls OUT.autotest/ | grep -E '_CHG$'`
 	# if test -z "$chgfiles"; then
@@ -396,7 +438,16 @@ if ! test -z "$deepks_bandgap" && [ $deepks_bandgap == 1 ]; then
 	oprec=`python3 get_oprec.py`
 	echo "oprec $oprec" >> $1
 fi
+
+if ! test -z "$symmetry" && [ $symmetry == 1 ]; then
+	pointgroup=`grep 'POINT GROUP' $running_path | tail -n 2 | head -n 1 | awk '{print $4}'`
+	spacegroup=`grep 'SPACE GROUP' $running_path | tail -n 1 | awk '{print $7}'`
+	nksibz=`grep ' nkstot_ibz ' $running_path | awk '{print $3}'`
+	echo "pointgroupref $pointgroup" >>$1
+	echo "spacegroupref $spacegroup" >>$1
+	echo "nksibzref $nksibz" >>$1
+fi
+
 #echo $total_band
 ttot=`grep $word $running_path | awk '{print $3}'`
 echo "totaltimeref $ttot" >>$1
-

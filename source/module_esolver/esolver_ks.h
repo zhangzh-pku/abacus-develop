@@ -1,27 +1,34 @@
 #ifndef ESOLVER_KS_H
 #define ESOLVER_KS_H
-#include "./esolver_fp.h"
-#include "string.h"
-#include "fstream"
-#include "module_hsolver/hsolver.h"
-#include "module_hamilt_general/hamilt.h"
+#include <string.h>
+
+#include <fstream>
+
+#include "esolver_fp.h"
 #include "module_basis/module_pw/pw_basis_k.h"
-#include "module_io/cal_test.h"
+#include "module_cell/klist.h"
 #include "module_elecstate/module_charge/charge_extra.h"
-// #include "estates.h"
-// #include "h2e.h"
+#include "module_elecstate/module_charge/charge_mixing.h"
+#include "module_hamilt_general/hamilt.h"
+#include "module_hamilt_pw/hamilt_pwdft/wavefunc.h"
+#include "module_hsolver/hsolver.h"
+#include "module_psi/psi.h"
+#include "module_io/cal_test.h"
+#include "module_io/output_potential.h"
+#include "module_io/output_rho.h"
+
 namespace ModuleESolver
 {
 
-    template<typename FPTYPE, typename Device = psi::DEVICE_CPU>
+    template<typename T, typename Device = psi::DEVICE_CPU>
     class ESolver_KS : public ESolver_FP
     {
     public:
         ESolver_KS();
         virtual ~ESolver_KS();
         // HSolver* phsol;
-        FPTYPE scf_thr;   // scf threshold
-        FPTYPE drho;      // the difference between rho_in (before HSolver) and rho_out (After HSolver)
+        double scf_thr;   // scf threshold
+        double drho;      // the difference between rho_in (before HSolver) and rho_out (After HSolver)
         int maxniter;     // maximum iter steps for scf
         int niter;        // iter steps actually used in scf
         bool conv_elec;   // If electron density is converged in scf.
@@ -33,10 +40,10 @@ namespace ModuleESolver
         virtual void Run(const int istep, UnitCell& cell) override;
 
         // calculate electron density from a specific Hamiltonian
-        virtual void hamilt2density(const int istep, const int iter, const FPTYPE ethr);
+        virtual void hamilt2density(const int istep, const int iter, const double ethr);
 
         // calculate electron states from a specific Hamiltonian
-        virtual void hamilt2estates(const FPTYPE ethr){};
+        virtual void hamilt2estates(const double ethr){};
 
         // get current step of Ionic simulation
         virtual int getniter() override;
@@ -62,22 +69,35 @@ namespace ModuleESolver
         void printhead();
         // Print inforamtion in each iter
         // G1    -3.435545e+03  0.000000e+00   3.607e-01  2.862e-01
-        void printiter(const int iter, const FPTYPE drho, const FPTYPE duration, const FPTYPE ethr);
+        void printiter(const int iter, const double drho, const double duration, const double ethr);
         // Write the headline in the running_log file
         // "PW/LCAO" ALGORITHM --------------- ION=   1  ELEC=   1--------------------------------
         void writehead(std::ofstream& ofs_running, const int istep, const int iter);
 
-// TODO: control single precision at input files
+        /// @brief create a new ModuleIO::Output_Rho object to output charge density
+        ModuleIO::Output_Rho create_Output_Rho(int is, int iter, const std::string& prefix="None");
 
-        hsolver::HSolver<FPTYPE, Device>* phsol = nullptr;
-        hamilt::Hamilt<FPTYPE, Device>* p_hamilt = nullptr;
+        /// @brief create a new ModuleIO::Output_Rho object to print kinetic energy density
+        ModuleIO::Output_Rho create_Output_Kin(int is, int iter, const std::string& prefix = "None");
+
+        /// @brief create a new ModuleIO::Output_Potential object to print potential
+        ModuleIO::Output_Potential create_Output_Potential(int iter, const std::string& prefix = "None");
+        // TODO: control single precision at input files
+
+        hsolver::HSolver<T, Device>* phsol = nullptr;
+        hamilt::Hamilt<T, Device>* p_hamilt = nullptr;
         ModulePW::PW_Basis_K* pw_wfc = nullptr;
+        Charge_Mixing* p_chgmix = nullptr;
+        wavefunc wf;
         Charge_Extra CE;
+
+        // wavefunction coefficients
+        psi::Psi<T>* psi = nullptr;
 
     protected:
         std::string basisname; //PW or LCAO
     protected:
-        void print_wfcfft(Input& inp, ofstream &ofs);
+        void print_wfcfft(Input& inp, std::ofstream &ofs);
 
     };
 }

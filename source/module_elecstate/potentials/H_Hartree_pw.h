@@ -25,24 +25,24 @@ class H_Hartree_pw
                                         const int &nspin,
                                         const double *const *const rho);
 
-    static int get_Z(string str);
+    static int get_Z(std::string str);
 
-    static void cast_C2R(complex<double> *src, double *dst, int dim);
+    static void cast_C2R(std::complex<double> *src, double *dst, int dim);
 
     static void lapl_rho(const std::complex<double> *rhog, double *lapn);
 
-    static void shape_gradn(const complex<double> *PS_TOTN, ModulePW::PW_Basis *rho_basis, double *eprime);
+    static void shape_gradn(const std::complex<double> *PS_TOTN, ModulePW::PW_Basis *rho_basis, double *eprime);
 
-    static void eps_pot(const complex<double> *PS_TOTN,
-                        const complex<double> *phi,
-                        ModulePW::PW_Basis *rho_basis,
-                        double *d_eps,
-                        double *vwork);
+    static void eps_pot(const std::complex<double>* PS_TOTN,
+                        const std::complex<double>* phi,
+                        const ModulePW::PW_Basis* rho_basis,
+                        double* d_eps,
+                        double* vwork);
 
     static void test_res(const UnitCell &ucell,
                          ModulePW::PW_Basis *rho_basis,
-                         const complex<double> *tot_N,
-                         complex<double> *phi,
+                         const std::complex<double> *tot_N,
+                         std::complex<double> *phi,
                          double *d_eps);
 
   private:
@@ -57,19 +57,9 @@ namespace elecstate
 class PotHartree : public PotBase
 {
   public:
-    PotHartree(const ModulePW::PW_Basis *rho_basis_in)
-    {
-        this->rho_basis_ = rho_basis_in;
-        this->dynamic_mode = true;
-        this->fixed_mode = false;
-    }
+    PotHartree(const ModulePW::PW_Basis* rho_basis_in);
 
-    void cal_v_eff(const Charge *chg, const UnitCell *ucell, ModuleBase::matrix &v_eff) override
-    {
-        v_eff
-            += H_Hartree_pw::v_hartree(*ucell, const_cast<ModulePW::PW_Basis *>(this->rho_basis_), v_eff.nr, chg->rho);
-        return;
-    }
+    void cal_v_eff(const Charge* chg, const UnitCell* ucell, ModuleBase::matrix& v_eff);
 };
 
 } // namespace elecstate

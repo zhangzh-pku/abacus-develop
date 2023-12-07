@@ -7,6 +7,7 @@ add_subdirectory(module_hamilt_pw)
 add_subdirectory(module_hamilt_lcao)
 add_subdirectory(module_hsolver)
 add_subdirectory(module_basis/module_ao)
+add_subdirectory(module_basis/module_nao)
 add_subdirectory(module_md)
 add_subdirectory(module_basis/module_pw)
 add_subdirectory(module_esolver)
@@ -31,7 +32,7 @@ list(APPEND device_srcs
   module_hsolver/kernels/dngvd_op.cpp
   module_hsolver/kernels/math_kernel_op.cpp
   module_elecstate/kernels/elecstate_op.cpp
-  module_psi/kernels/memory_op.cpp
+  module_psi/kernels/psi_memory_op.cpp
   module_psi/kernels/device.cpp
   module_hamilt_pw/hamilt_pwdft/kernels/force_op.cpp
   module_hamilt_pw/hamilt_pwdft/kernels/stress_op.cpp
@@ -99,10 +100,11 @@ elseif(USE_ROCM)
   target_link_libraries(
     device 
     device_rocm 
-    hip::device
     hip::host
+    hip::device
     hip::hipfft
     roc::hipblas
+    roc::hipsolver
   )
 endif()
 

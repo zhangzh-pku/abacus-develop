@@ -11,7 +11,6 @@
 
 WF_atomic::WF_atomic()
 {
-    pw_seed = 0;
 }
 
 WF_atomic::~WF_atomic()
@@ -37,6 +36,7 @@ WF_atomic::~WF_atomic()
 //==========================================================
 void WF_atomic::init_at_1(Structure_Factor *sf_in)
 {
+    if(GlobalV::use_paw) return;
     if (GlobalV::test_wf) ModuleBase::TITLE("WF_atomic","init_at_1");
     ModuleBase::timer::tick("WF_atomic","init_at_1");
     this->psf = sf_in;
@@ -100,29 +100,84 @@ void WF_atomic::init_at_1(Structure_Factor *sf_in)
             ModuleBase::Integral::Simpson_Integral(nmesh, inner_part, atom->ncpp.rab, unit);
             delete[] inner_part;
 
-			GlobalV::ofs_running << " the unit of pseudo atomic orbital is " << unit;
+            // liuyu add 2023-10-06
+            if (unit < 1e-8)
+            {
+                // set occupancy to a small negative number so that this wfc
+                // is not going to be used for starting wavefunctions
+                atom->ncpp.oc[ic] = -1e-8;
+                GlobalV::ofs_running << "WARNING: norm of atomic wavefunction # " << ic + 1 << " of atomic type "
+                                     << atom->ncpp.psd << " is zero" << std::endl;
+            }
+            // only occupied states are normalized
+            if (atom->ncpp.oc[ic] < 0)
+            {
+                continue;
+            }
+            // the US part if needed
+            if (atom->ncpp.tvanp)
+            {
+                int kkbeta = atom->ncpp.kkbeta;
+                if ((kkbeta % 2 == 0) && kkbeta > 0)
+                {
+                    kkbeta--;
+                }
+                double* norm_beta = new double[kkbeta];
+                double* work = new double[atom->ncpp.nbeta];
+                for (int ib = 0; ib < atom->ncpp.nbeta; ib++)
+                {
+                    bool match = false;
+                    if (atom->ncpp.lchi[ic] == atom->ncpp.lll[ib])
+                    {
+                        if (atom->ncpp.has_so)
+                        {
+                            if (std::abs(atom->ncpp.jchi[ic] - atom->ncpp.jjj[ib]) < 1e-6)
+                            {
+                                match = true;
+                            }
+                        }
+                        else
+                        {
+                            match = true;
+                        }
+                    }
+                    if (match)
+                    {
+                        for (int ik = 0; ik < kkbeta; ik++)
+                        {
+                            norm_beta[ik] = atom->ncpp.betar(ib, ik) * atom->ncpp.chi(ic, ik);
+                        }
+                        ModuleBase::Integral::Simpson_Integral(kkbeta, norm_beta, atom->ncpp.rab, work[ib]);
+                    }
+                    else
+                    {
+                        work[ib] = 0.0;
+                    }
+                }
+                for (int ib1 = 0; ib1 < atom->ncpp.nbeta; ib1++)
+                {
+                    for (int ib2 = 0; ib2 < atom->ncpp.nbeta; ib2++)
+                    {
+                        unit += atom->ncpp.qqq(ib1, ib2) * work[ib1] * work[ib2];
+                    }
+                }
+                delete[] norm_beta;
+                delete[] work;
+            } // endif tvanp
 
             //=================================
             // normalize radial wave functions
             //=================================
-            for (int ir=0; ir<nmesh; ir++)
+            unit = std::sqrt(unit);
+            if (std::abs(unit - 1.0) > 1e-6)
             {
-                atom->ncpp.chi(ic,ir) /= sqrt(unit);
+                GlobalV::ofs_running << "WARNING: norm of atomic wavefunction # " << ic + 1 << " of atomic type "
+                                     << atom->ncpp.psd << " is " << unit << ", renormalized" << std::endl;
+                for (int ir = 0; ir < nmesh; ir++)
+                {
+                    atom->ncpp.chi(ic, ir) /= unit;
+                }
             }
-
-            //===========
-            // recheck
-            //===========
-            inner_part = new double[nmesh];
-            for (int ir=0; ir<nmesh; ir++)
-            {
-                inner_part[ir] = atom->ncpp.chi(ic,ir) * atom->ncpp.chi(ic,ir);
-            }
-            unit = 0.0;
-            ModuleBase::Integral::Simpson_Integral(nmesh, inner_part, atom->ncpp.rab, unit);
-            delete[] inner_part;
-
-			GlobalV::ofs_running << ", renormalize to " << unit << std::endl;
 
             if (atom->ncpp.oc[ic] >= 0.0)
             {
@@ -168,25 +223,9 @@ void WF_atomic::print_PAOs(void)const
     {
         for (int icc=0; icc<GlobalC::ucell.atoms[it].ncpp.nchi ;icc++)
         {
-            int ic = icc;
-            if(GlobalV::NSPIN==4) ic = icc/2;
-            std::string orbital_type;
-            if (ic == 0)  orbital_type = "S";
-            else if (ic == 1) orbital_type = "P";
-            else if (ic == 2) orbital_type = "D";
-			else if (ic == 3) orbital_type = "F"; // mohan add 2009-12-15
-			else if (ic == 4) orbital_type = "G"; // liuyu add 2021-05-07
-            else
-            {
-				GlobalV::ofs_warning << "\n nchi = " << GlobalC::ucell.atoms[it].ncpp.nchi << std::endl;
-                ModuleBase::WARNING_QUIT("WF_atomic::print_PAOs", "unknown PAO type.");
-            }
-
             std::stringstream ss;
-            ss << GlobalV::global_out_dir
-            << GlobalC::ucell.atoms[it].label << "/"
-            << GlobalC::ucell.atoms[it].label << "-"
-            << orbital_type << ".ORBITAL";
+            ss << GlobalV::global_out_dir << GlobalC::ucell.atoms[it].label << "/" << GlobalC::ucell.atoms[it].label
+               << "-" << GlobalC::ucell.atoms[it].ncpp.els[icc] << ".ORBITAL";
 
             std::ofstream ofs(ss.str().c_str());
             ofs << "Mesh " << GlobalC::ucell.atoms[it].ncpp.msh;
@@ -210,11 +249,11 @@ void WF_atomic::print_PAOs(void)const
 void WF_atomic::atomic_wfc(const int ik,
                            const int np,
                            const int lmax_wfc,
-                           ModulePW::PW_Basis_K *wfc_basis,
-                           ModuleBase::ComplexMatrix &wfcatom,
-                           const ModuleBase::realArray &table_q,
-                           const int &table_dimension,
-                           const double &dq) const
+                           const ModulePW::PW_Basis_K* wfc_basis,
+                           ModuleBase::ComplexMatrix& wfcatom,
+                           const ModuleBase::realArray& table_q,
+                           const int& table_dimension,
+                           const double& dq) const
 {
     if (GlobalV::test_wf>3) ModuleBase::TITLE("WF_atomic","atomic_wfc");
     ModuleBase::timer::tick("WF_atomic","atomic_wfc");
@@ -293,7 +332,7 @@ void WF_atomic::atomic_wfc(const int ik,
                                               ModuleBase::GlobalFunc::ZEROS(aux, np);
                                               for(int n1=0;n1<2*l+1;n1++){
                                                  const int lm = l*l +n1;
-                                                 if(abs(soc.rotylm(n1,ind))>1e-8)
+                                                 if(std::abs(soc.rotylm(n1,ind))>1e-8)
                                                    for(int ig=0; ig<np;ig++)
                                                       aux[ig] += soc.rotylm(n1,ind)* ylm(lm,ig);
                                               }
@@ -454,7 +493,7 @@ void WF_atomic::atomic_wfc(const int ik,
 } // end subroutine atomic_wfc
 
 #ifdef __MPI
-void WF_atomic::stick_to_pool(float *stick, const int &ir, float *out, ModulePW::PW_Basis_K* wfc_basis) const
+void WF_atomic::stick_to_pool(float* stick, const int& ir, float* out, const ModulePW::PW_Basis_K* wfc_basis) const
 {	
 	MPI_Status ierror;
     const int is = this->irindex[ir];
@@ -483,7 +522,7 @@ void WF_atomic::stick_to_pool(float *stick, const int &ir, float *out, ModulePW:
 
 	return;	
 }
-void WF_atomic::stick_to_pool(double *stick, const int &ir, double *out, ModulePW::PW_Basis_K* wfc_basis) const
+void WF_atomic::stick_to_pool(double* stick, const int& ir, double* out, const ModulePW::PW_Basis_K* wfc_basis) const
 {	
 	MPI_Status ierror;
     const int is = this->irindex[ir];
@@ -514,31 +553,43 @@ void WF_atomic::stick_to_pool(double *stick, const int &ir, double *out, ModuleP
 }
 #endif
 
-void WF_atomic::random(std::complex<double> *psi, const int iw_start,const int iw_end,const int ik, ModulePW::PW_Basis_K* wfc_basis)
+void WF_atomic::random(std::complex<double>* psi,
+                       const int iw_start,
+                       const int iw_end,
+                       const int ik,
+                       const ModulePW::PW_Basis_K* wfc_basis)
 {
     this->random_t(psi, iw_start, iw_end, ik, wfc_basis);
 }
 
-void WF_atomic::random(std::complex<float> *psi, const int iw_start,const int iw_end,const int ik, ModulePW::PW_Basis_K* wfc_basis)
+void WF_atomic::random(std::complex<float>* psi,
+                       const int iw_start,
+                       const int iw_end,
+                       const int ik,
+                       const ModulePW::PW_Basis_K* wfc_basis)
 {
     this->random_t(psi, iw_start, iw_end, ik, wfc_basis);
 }
 
-template<typename FPTYPE>
-void WF_atomic::random_t(std::complex<FPTYPE> *psi, const int iw_start,const int iw_end,const int ik, ModulePW::PW_Basis_K* wfc_basis)
+template <typename FPTYPE>
+void WF_atomic::random_t(std::complex<FPTYPE>* psi,
+                         const int iw_start,
+                         const int iw_end,
+                         const int ik,
+                         const ModulePW::PW_Basis_K* wfc_basis)
 {
     assert(iw_start >= 0);
     const int ng = wfc_basis->npwk[ik];
 #ifdef __MPI
-// #if ((defined __CUDA) || (defined __ROCM))
-    // if(pw_seed > 0)//qianrui add 2021-8-13
+    // #if ((defined __CUDA) || (defined __ROCM))
+    // if(INPUT.pw_seed > 0)//qianrui add 2021-8-13
     // {
-    //     srand(unsigned(pw_seed + GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL] + ik));
+    //     srand(unsigned(INPUT.pw_seed + GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL] + ik));
     // }
-// #else
-    if(pw_seed > 0)//qianrui add 2021-8-13
+    // #else
+    if (INPUT.pw_seed > 0) // qianrui add 2021-8-13
     {
-        srand(unsigned(pw_seed + GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL] + ik));
+        srand(unsigned(INPUT.pw_seed + GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL] + ik));
         const int nxy = wfc_basis->fftnxy;
         const int nz = wfc_basis->nz;
         const int nstnz = wfc_basis->nst*nz;
@@ -588,10 +639,10 @@ void WF_atomic::random_t(std::complex<FPTYPE> *psi, const int iw_start,const int
     {
 // #endif
 #else  // !__MPI
-        if(pw_seed > 0)//qianrui add 2021-8-13
-        {
-            srand(unsigned(pw_seed + ik));
-        }
+    if (INPUT.pw_seed > 0) // qianrui add 2021-8-13
+    {
+        srand(unsigned(INPUT.pw_seed + ik));
+    }
 #endif // __MPI
         for (int iw = iw_start ;iw < iw_end;iw++)
         {
@@ -618,15 +669,19 @@ void WF_atomic::random_t(std::complex<FPTYPE> *psi, const int iw_start,const int
 #endif // __MPI
 }
 
-void WF_atomic::atomicrandom(ModuleBase::ComplexMatrix &psi,const int iw_start,const int iw_end,const int ik, ModulePW::PW_Basis_K* wfc_basis)const
+void WF_atomic::atomicrandom(ModuleBase::ComplexMatrix& psi,
+                             const int iw_start,
+                             const int iw_end,
+                             const int ik,
+                             const ModulePW::PW_Basis_K* wfc_basis) const
 {
     assert(iw_start >= 0);
     assert(psi.nr >= iw_end);
     const int ng = wfc_basis->npwk[ik];
 #ifdef __MPI
-    if(pw_seed > 0)//qianrui add 2021-8-13
+    if (INPUT.pw_seed > 0) // qianrui add 2021-8-13
     {
-        srand(unsigned(pw_seed + GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL] + ik));
+        srand(unsigned(INPUT.pw_seed + GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL] + ik));
         const int nxy = wfc_basis->fftnxy;
         const int nz = wfc_basis->nz;
         const int nstnz = wfc_basis->nst*nz;
@@ -672,9 +727,9 @@ void WF_atomic::atomicrandom(ModuleBase::ComplexMatrix &psi,const int iw_start,c
     else
     {
 #else
-        if(pw_seed > 0)//qianrui add 2021-8-13
-        {
-            srand(unsigned(pw_seed + GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL] + ik));
+    if (INPUT.pw_seed > 0) // qianrui add 2021-8-13
+    {
+            srand(unsigned(INPUT.pw_seed + GlobalC::Pkpoints.startk_pool[GlobalV::MY_POOL] + ik));
         }
 #endif
         double rr, arg;
