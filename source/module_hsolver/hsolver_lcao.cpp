@@ -7,7 +7,11 @@
 #ifdef __ELPA
 #include "diago_elpa.h"
 #endif
+
+#ifdef __PEXSI
 #include "diago_pexsi.h"
+#endif
+
 #include "module_elecstate/elecstate_lcao.h"
 
 namespace hsolver
@@ -141,15 +145,20 @@ void HSolverLCAO<T>::solveTemplate(hamilt::Hamilt<T>* pHamilt,
 
     // calculate charge by psi
     // called in scf calculation
+#ifdef __PEXSI
     if (this->method == "pexsi")
     {
         DiagoPexsi<T>* tem = dynamic_cast<DiagoPexsi<T>*>(this->pdiagh);
         if (tem==nullptr) ModuleBase::WARNING_QUIT("HSolverLCAO", "pexsi need debug!");
         elecstate::ElecStateLCAO<T>* _pes = dynamic_cast<elecstate::ElecStateLCAO<T>*>(pes);
         pes->f_en.eband = tem->totalFreeEnergy;
-        _pes->get_DM_from_pexsi(tem->DM, tem->ParaV);
+        _pes->dmToRho(tem->DM);
     }
-    pes->psiToRho(psi);
+    else
+#endif
+    {
+        pes->psiToRho(psi);
+    }
     ModuleBase::timer::tick("HSolverLCAO", "solve");
 }
 template <typename T>

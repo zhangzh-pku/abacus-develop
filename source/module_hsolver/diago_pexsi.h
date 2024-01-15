@@ -1,11 +1,6 @@
 #ifndef DIGAOPEXSI_H
 #define DIGAOPEXSI_H
 
-#ifdef  __PEXSI
-
-#define DIGAOPEXSI_H
-#endif
-
 #include "module_basis/module_ao/parallel_orbitals.h"
 #include "diagh.h"
 #include "pexsi/pexsi_solver.h"
@@ -25,7 +20,7 @@ namespace hsolver
       }
       void diag(hamilt::Hamilt<T>* phm_in, psi::Psi<T>& psi, Real* eigenvalue_in) override;
       const Parallel_Orbitals* ParaV;
-      double* DM;
+      T* DM;
       double* EDM;
       double totalEnergyH;
       double totalEnergyS;

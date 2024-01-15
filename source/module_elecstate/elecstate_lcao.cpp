@@ -166,32 +166,27 @@ void ElecStateLCAO<double>::psiToRho(const psi::Psi<double>& psi)
     ModuleBase::TITLE("ElecStateLCAO", "psiToRho");
     ModuleBase::timer::tick("ElecStateLCAO", "psiToRho");
 
-    if (GlobalV::KS_SOLVER != "pexsi") // useless for pexsi
-    {
-        this->calculate_weights();
-        this->calEBand();
-    }
+    this->calculate_weights();
+    this->calEBand();
 
     if (GlobalV::KS_SOLVER == "genelpa" || GlobalV::KS_SOLVER == "scalapack_gvx" || GlobalV::KS_SOLVER == "lapack" || GlobalV::KS_SOLVER == "pexsi")
     {
         ModuleBase::timer::tick("ElecStateLCAO", "cal_dm_2d");
-        if (GlobalV::KS_SOLVER != "pexsi")
+
+        // get DMK in 2d-block format
+        //cal_dm(this->loc->ParaV, this->wg, psi, this->loc->dm_gamma);
+        elecstate::cal_dm_psi(this->DM->get_paraV_pointer(), this->wg, psi, *(this->DM));
+        this->DM->cal_DMR();
+
+        if (this->loc->out_dm) // keep interface for old Output_DM until new one is ready
         {
-            // get DMK in 2d-block format
-            //cal_dm(this->loc->ParaV, this->wg, psi, this->loc->dm_gamma);
-            elecstate::cal_dm_psi(this->DM->get_paraV_pointer(), this->wg, psi, *(this->DM));
-            this->DM->cal_DMR();
-
-            if (this->loc->out_dm) // keep interface for old Output_DM until new one is ready
+            this->loc->dm_gamma.resize(GlobalV::NSPIN);
+            for (int is = 0; is < GlobalV::NSPIN; ++is)
             {
-                this->loc->dm_gamma.resize(GlobalV::NSPIN);
-                for (int is = 0; is < GlobalV::NSPIN; ++is)
-                {
-                    this->loc->set_dm_gamma(is, this->DM->get_DMK_pointer(is));
-                }
+                this->loc->set_dm_gamma(is, this->DM->get_DMK_pointer(is));
             }
-
         }
+
 
         
 
@@ -278,19 +273,56 @@ double ElecStateLCAO<std::complex<double>>::get_spin_constrain_energy()
     return sc.cal_escon();
 }
 
+#ifdef __PEXSI
 template<>
-void ElecStateLCAO<double>::get_DM_from_pexsi(double* DM, const Parallel_Orbitals* ParaV)
+void ElecStateLCAO<double>::dmToRho(double* pexsi_DM)
 {
-    this->loc->dm_gamma[0].create(ParaV->ncol, ParaV->nrow);
-    this->loc->dm_gamma[0].c = DM;
-    this->loc->out_dm = 1;
+    ModuleBase::timer::tick("ElecStateLCAO", "dmToRho");
+
+    this->loc->set_dm_gamma(0, pexsi_DM);
+
+    // old 2D-to-Grid conversion has been replaced by new Gint Refactor 2023/09/25
+    if (this->loc->out_dm) // keep interface for old Output_DM until new one is ready
+    {
+        this->loc->cal_dk_gamma_from_2D_pub();
+    }
+
+    auto DM = this->get_DM();
+    DM->set_DMK_pointer(0, pexsi_DM);
+    DM->cal_DMR();
+    
+    for (int is = 0; is < GlobalV::NSPIN; is++)
+    {
+        ModuleBase::GlobalFunc::ZEROS(this->charge->rho[is], this->charge->nrxx); // mohan 2009-11-10
+    }
+
+    ModuleBase::GlobalFunc::NOTE("Calculate the charge on real space grid!");
+    this->uhm->GG.transfer_DM2DtoGrid(this->DM->get_DMR_vector()); // transfer DM2D to DM_grid in gint
+    Gint_inout inout(this->loc->DM, this->charge->rho, Gint_Tools::job_type::rho);
+    this->uhm->GG.cal_gint(&inout);
+    if (XC_Functional::get_func_type() == 3 || XC_Functional::get_func_type() == 5)
+    {
+        for (int is = 0; is < GlobalV::NSPIN; is++)
+        {
+            ModuleBase::GlobalFunc::ZEROS(this->charge->kin_r[0], this->charge->nrxx);
+        }
+        Gint_inout inout1(this->loc->DM, this->charge->kin_r, Gint_Tools::job_type::tau);
+        this->uhm->GG.cal_gint(&inout1);
+    }
+
+    this->charge->renormalize_rho();
+
+    ModuleBase::timer::tick("ElecStateLCAO", "dmToRho");
+    return;
 }
 
 template<>
-void ElecStateLCAO<std::complex<double>>::get_DM_from_pexsi(double* DM, const Parallel_Orbitals* ParaV)
+void ElecStateLCAO<std::complex<double>>::dmToRho(std::complex<double>* DM)
 {
     ModuleBase::WARNING_QUIT("ElecStateLCAO", "pexsi is not completed for multi-k case");
 }
+
+#endif
 
 template class ElecStateLCAO<double>; // Gamma_only case
 template class ElecStateLCAO<std::complex<double>>; // multi-k case

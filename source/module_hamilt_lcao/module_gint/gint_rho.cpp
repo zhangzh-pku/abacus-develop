@@ -36,7 +36,7 @@ void Gint::gint_kernel_rho(
 		ModuleBase::GlobalFunc::ZEROS(psir_DM.ptr_1D, this->bxyz*LD_pool);
 		if(GlobalV::GAMMA_ONLY_LOCAL)
 		{
-			if (GlobalV::CALCULATION == "get_pchg" || GlobalV::KS_SOLVER == "pexsi")
+			if (GlobalV::CALCULATION == "get_pchg")
 			{
 				Gint_Tools::mult_psi_DM(
 					*this->gridt, this->bxyz, na_grid, LD_pool,

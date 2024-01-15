@@ -174,11 +174,6 @@ void ElecState::calEBand()
     ModuleBase::TITLE("ElecState", "calEBand");
     // calculate ebands using wg and ekb
     double eband = 0.0;
-    // if (GlobalV::KS_SOLVER == "pexsi")
-    // {
-    //     // tbd
-    // }
-    // else
     {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2) reduction(+:eband)
