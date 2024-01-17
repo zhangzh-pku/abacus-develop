@@ -53,7 +53,7 @@ void Veff<OperatorLCAO<TK, TR>>::initialize_HR(const UnitCell* ucell_in,
         }
     }
     // allocate the memory of BaseMatrix in HR, and set the new values to zero
-    this->hR->allocate(true);
+    this->hR->allocate(nullptr, true);
 
     ModuleBase::timer::tick("Veff", "initialize_HR");
 }
@@ -156,12 +156,6 @@ void Veff<OperatorLCAO<double, double>>::contributeHR()
     this->GG->transfer_pvpR(this->hR);
 
     this->new_e_iteration = false;
-}
-
-template<typename TK, typename TR>
-void Veff<OperatorLCAO<TK, TR>>::contributeHk(int ik)
-{
-    ModuleBase::TITLE("Veff", "contributeHk");
 }
 
 }

@@ -12,7 +12,7 @@ namespace ModuleESolver
 
         if (GlobalV::double_grid)
         {
-            pw_rhod = new ModulePW::PW_Basis_Sup(GlobalV::device_flag, GlobalV::precision_flag);
+            pw_rhod = new ModulePW::PW_Basis_Big(GlobalV::device_flag, GlobalV::precision_flag);
         }
         else
         {
@@ -20,11 +20,11 @@ namespace ModuleESolver
         }
 
         //temporary, it will be removed
-        pw_big = static_cast<ModulePW::PW_Basis_Big*>(pw_rho);
+        pw_big = static_cast<ModulePW::PW_Basis_Big*>(pw_rhod);
         pw_big->setbxyz(INPUT.bx, INPUT.by, INPUT.bz);
         sf.set(pw_rhod, INPUT.nbspline);
 
-        this->symm.epsilon = this->symm.epsilon_input = INPUT.symmetry_prec;
+        GlobalC::ucell.symm.epsilon = GlobalC::ucell.symm.epsilon_input = INPUT.symmetry_prec;
 }
     ESolver_FP::~ESolver_FP()
     {
@@ -53,6 +53,7 @@ namespace ModuleESolver
         else
             this->pw_rho->initgrids(inp.ref_cell_factor * cell.lat0, cell.latvec, inp.nx, inp.ny, inp.nz);
         this->pw_rho->initparameters(false, 4.0 * inp.ecutwfc);
+        this->pw_rho->ft.fft_mode = inp.fft_mode;
         this->pw_rho->setuptransform();
         this->pw_rho->collect_local_pw();
         this->pw_rho->collect_uniqgg();
@@ -70,6 +71,7 @@ namespace ModuleESolver
             else
                 this->pw_rhod->initgrids(inp.ref_cell_factor * cell.lat0, cell.latvec, inp.ndx, inp.ndy, inp.ndz);
             this->pw_rhod->initparameters(false, inp.ecutrho);
+            this->pw_rhod->ft.fft_mode = inp.fft_mode;
             pw_rhod_sup->setuptransform(this->pw_rho);
             this->pw_rhod->collect_local_pw();
             this->pw_rhod->collect_uniqgg();
@@ -129,11 +131,11 @@ namespace ModuleESolver
 
         if(ModuleSymmetry::Symmetry::symm_flag == 1)
         {
-            symm.analy_sys(cell, GlobalV::ofs_running);
+            cell.symm.analy_sys(cell.lat, cell.st, cell.atoms, GlobalV::ofs_running);
             ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running, "SYMMETRY");
         }
 
-        kv.set_after_vc(symm, GlobalV::global_kpoint_card, GlobalV::NSPIN, cell.G, cell.latvec);
+        kv.set_after_vc(cell.symm, GlobalV::global_kpoint_card, GlobalV::NSPIN, cell.G, cell.latvec);
         ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running, "INIT K-POINTS");
     }
 

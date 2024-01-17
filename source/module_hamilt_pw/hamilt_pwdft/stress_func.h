@@ -95,7 +95,12 @@ class Stress_Func
                     FPTYPE* dvloc,
                     ModulePW::PW_Basis* rho_basis); // used in local pseudopotential stress
 
-    void dvloc_coul(const FPTYPE& zp,
+    /**
+     * @brief compute the derivative of the coulomb potential in reciprocal space
+     *        D V(g^2) / D g^2 = 4pi e^2/omegai /G^4
+     * 
+     */
+    void dvloc_coulomb(const FPTYPE& zp,
                     FPTYPE* dvloc,
                     ModulePW::PW_Basis* rho_basis); // used in local pseudopotential stress
 
@@ -124,7 +129,7 @@ class Stress_Func
                      const Charge* const chr,
                      K_Vectors* p_kv,
                      ModulePW::PW_Basis_K* wfc_basis,
-                     const psi::Psi<complex<FPTYPE>>* psi_in = nullptr); // gga part in PW basis
+                     const psi::Psi<complex<FPTYPE>, Device>* psi_in); // gga part in PW basis
 
     // 7) the stress from the non-local pseudopotentials
     void stress_nl(ModuleBase::matrix& sigma,

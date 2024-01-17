@@ -1,6 +1,7 @@
 #include "math_sphbes.h"
 #include "timer.h"
 #include "constants.h"
+#include <algorithm>
 
 #include <cassert>
 
@@ -369,7 +370,7 @@ void Sphbes::Spherical_Bessel_Roots
     Sphbes::Spherical_Bessel(msh, r, 1, l, jl);
 
     int n=0;
-    for (int i=0; i<msh && n<num; i++)
+    for (int i=0; i<msh-1 && n<num; i++)
     {
         if (jl[i]*jl[i+1] < 0.0)
         {
@@ -377,22 +378,23 @@ void Sphbes::Spherical_Bessel_Roots
             double y_2 = jl[i+1];
             double x_1 = r[i];
             double x_2 = r[i+1];
-            double acc = std::fabs( y_2 - y_1 );
+            double acc = std::fabs(y_2 - y_1);
+
+            const int grid=100;
+            double *rad = new double[grid];
+            double *jl_new = new double[grid];
             while (acc > epsilon)
             {
-                double *rad = new double[100];
-                double *jl_new = new double[100];
-
                 // if not enough accurate, divide again.
-                const double delta2 = (x_2 - x_1)/99.0;
-                for (int j=0;j<100;j++)
+                const double delta2 = (x_2 - x_1)/(grid-1);
+                for (int j=0;j<grid;j++)
                 {
                     rad[j] = x_1 + j*delta2;
                 }
-                Sphbes::Spherical_Bessel(100,rad,1,l,jl_new);
+                Sphbes::Spherical_Bessel(grid,rad,1,l,jl_new);
 
                 int j=0;
-                for (;j<100;j++)
+                for (;j<grid-1;j++)
                 {
                     if (jl_new[j]*jl_new[j+1]<0)break;
                 }
@@ -402,9 +404,9 @@ void Sphbes::Spherical_Bessel_Roots
                 y_1 = jl_new[j];
                 y_2 = jl_new[j+1];
                 acc = std::fabs( y_2 - y_1 );
-                delete[] rad;
-                delete[] jl_new;
             }
+            delete[] rad;
+            delete[] jl_new;
             eigenvalue[n]=(x_2 + x_1)*0.5/rcut;
             n++;
         }
@@ -638,13 +640,13 @@ void Sphbes::dSpherical_Bessel_dx
 		std::cout << "We temporarily only calculate derivative of l >= 0." << std::endl;
 		exit(0);
     }
-    
+
     double djl0 = 0;
     if(l == 1)
     {
         djl0 = 1.0/3.0;
     }
-    
+
     if(l == 0 )
     {
         for (int ir = 0;ir < msh; ir++)
@@ -658,7 +660,7 @@ void Sphbes::dSpherical_Bessel_dx
             {
                 djl[ir] = (x1 * std::cos(x1) - std::sin(x1)) / (x1*x1);
             }
-            
+
         }
     }
     else
@@ -669,7 +671,7 @@ void Sphbes::dSpherical_Bessel_dx
         for (int ir = 0;ir < msh; ir++)
         {
             double x1 = q * r[ir];
-            if(x1 < 1e-8) 
+            if(x1 < 1e-8)
             {
                 djl[ir] = djl0;
             }
@@ -687,7 +689,7 @@ void Sphbes::dSpherical_Bessel_dx
 double Sphbes::_sphbesj_ascending_recurrence(int l, double x) {
 
     // should be used when x > l && l > 0
-    
+
     double invx = 1.0 / x;
     double j0 = std::sin(x) * invx;
     double j1 = ( j0 - std::cos(x) ) * invx;
@@ -753,21 +755,21 @@ double Sphbes::sphbesj(const int l, const double x)
           case 0:
             return std::sin(x) * invx;
           case 1:
-            return ( std::sin(x) * invx - std::cos(x) ) * invx; 
+            return ( std::sin(x) * invx - std::cos(x) ) * invx;
             // NOTE: the following explicit expressions are not necessarily faster than ascending recurrence,
             // but we keep them just in case we need them in the future.
           //case 2:
           //  return ( (3.0 * invx  - x) * std::sin(x) - 3.0 * std::cos(x) ) * (invx * invx);
           //case 3:
-          //  return ( std::sin(x) * (15.0 * invx - 6.0 * x) + std::cos(x) * (x * x - 15.0) ) * std::pow(invx, 3); 
+          //  return ( std::sin(x) * (15.0 * invx - 6.0 * x) + std::cos(x) * (x * x - 15.0) ) * std::pow(invx, 3);
           //case 4:
-          //  return ( std::sin(x) * (std::pow(x,3) - 45.0 * x + 105.0 * invx) 
+          //  return ( std::sin(x) * (std::pow(x,3) - 45.0 * x + 105.0 * invx)
           //          + std::cos(x) * (10.0 * x * x - 105.0) ) * std::pow(invx, 4);
           //case 5:
-          //  return ( std::sin(x) * (15.0 * std::pow(x,3) - 420.0 * x + 945.0 * invx) 
+          //  return ( std::sin(x) * (15.0 * std::pow(x,3) - 420.0 * x + 945.0 * invx)
           //          + std::cos(x) * (-std::pow(x, 4) + 105.0 * x * x - 945.0) ) * std::pow(invx, 5);
           //case 6:
-          //  return ( std::sin(x) * (-std::pow(x, 5) + 210.0 * std::pow(x, 3) - 4725.0 * x + 10395.0 * invx) 
+          //  return ( std::sin(x) * (-std::pow(x, 5) + 210.0 * std::pow(x, 3) - 4725.0 * x + 10395.0 * invx)
           //          + std::cos(x) * (-21.0 * std::pow(x, 4) + 1260.0 * x * x - 10395.0) ) * std::pow(invx, 6);
           default:
             return _sphbesj_ascending_recurrence(l, x);
@@ -804,6 +806,96 @@ void Sphbes::dsphbesj(const int n,
     {
         djl[i] = Sphbes::dsphbesj(l, q * r[i]);
     }
+}
+
+void Sphbes::sphbes_zeros(const int l, const int n, double* const zeros)
+{
+    assert( n > 0 );
+    assert( l >= 0 );
+
+    // The zeros of j_l and j_{l-1} are interlaced;
+    // So do the zeros of j_l and j_{l-2}.
+    // This property enables us to use bracketing method recursively
+    // to find all zeros of j_l from the zeros of j_0.
+
+    // if l is odd , j_0 --> j_1 --> j_3 --> j_5 --> ...
+    // if l is even, j_0 --> j_2 --> j_4 --> j_6 --> ...
+
+    int nz = n + (l+1)/2; // number of effective zeros in buffer
+    double* buffer = new double[nz];
+
+    // zeros of j_0 = sin(x)/x is just n*pi
+    double PI = std::acos(-1.0);
+    for (int i = 0; i < nz; i++)
+    {
+        buffer[i] = (i+1) * PI;
+    }
+
+    int ll = 1;
+    auto jl = [&ll] (double x) { return sphbesj(ll, x); };
+
+    if (l % 2 == 1)
+    {
+        for (int i = 0; i < nz-1; i++)
+        {
+            buffer[i] = illinois(jl, buffer[i], buffer[i+1], 1e-15, 50);
+        }
+        --nz;
+    }
+
+    for (ll = 2 + l%2; ll <= l; ll += 2, --nz)
+    {
+        for (int i = 0; i < nz-1; i++)
+        {
+            buffer[i] = illinois(jl, buffer[i], buffer[i+1], 1e-15, 50);
+        }
+    }
+
+    std::copy(buffer, buffer + n, zeros);
+    delete[] buffer;
+}
+
+double Sphbes::illinois(std::function<double(double)> func, double x0, double x1, const double tol, const int max_iter)
+{
+    assert(tol > 0.0 && max_iter > 0);
+
+    double f0 = func(x0);
+    double f1 = func(x1);
+    assert(f0 * f1 <= 0);
+
+    if (std::abs(f0) < std::abs(f1)) {
+        std::swap(x0, x1);
+        std::swap(f0, f1);
+    }
+
+    int iter = 0;
+    double x, f;
+    while (++iter <= max_iter && std::abs(f1) > tol)
+    {
+        // regula falsi
+        x = (x0 * f1 - x1 * f0) / (f1 - f0);
+        f = func(x);
+
+        // Illinois anti-stalling variant
+        if (f * f1 < 0)
+        {
+            x0 = x1;
+            f0 = f1;
+        }
+        else
+        {
+            f0 *= 0.5;
+        }
+        x1 = x;
+        f1 = f;
+    }
+
+    if (iter > max_iter)
+    {
+        std::cout << "Maximum number of iterations reached in illinois." << std::endl;
+    }
+
+    return x1;
 }
 
 }

@@ -46,7 +46,7 @@ int count_ntype(const std::string& fn)
         while (true)
         {
             ModuleBase::GlobalFunc::READ_VALUE(ifa, temp);
-            if (temp == "LATTICE_CONSTANT" || temp == "NUMERICAL_ORBITAL" || temp == "NUMERICAL_DESCRIPTOR"
+            if (temp == "LATTICE_CONSTANT" || temp == "NUMERICAL_ORBITAL" || temp == "NUMERICAL_DESCRIPTOR" || temp == "PAW_FILES"
                 || ifa.eof())
             {
                 break;
@@ -443,6 +443,10 @@ bool input_parameters_set(std::map<std::string, InputParameter> input_parameters
     {
         INPUT.wannier_spin = static_cast<SimpleString*>(input_parameters["wannier_spin"].get())->c_str();
     }
+    else if (input_parameters.count("wannier_method") != 0)
+    {
+        INPUT.wannier_method = *static_cast<int*>(input_parameters["wannier_method"].get());
+    }
     else if (input_parameters.count("out_wannier_mmn") != 0)
     {
         INPUT.out_wannier_mmn = *static_cast<bool*>(input_parameters["out_wannier_mmn"].get());
@@ -479,6 +483,10 @@ bool input_parameters_set(std::map<std::string, InputParameter> input_parameters
     {
         INPUT.seed_sto = *static_cast<int*>(input_parameters["seed_sto"].get());
     }
+    else if (input_parameters.count("initsto_ecut") != 0)
+    {
+        INPUT.initsto_ecut = *static_cast<double*>(input_parameters["initsto_ecut"].get());
+    }
     else if (input_parameters.count("emax_sto") != 0)
     {
         INPUT.emax_sto = *static_cast<double*>(input_parameters["emax_sto"].get());
@@ -507,9 +515,9 @@ bool input_parameters_set(std::map<std::string, InputParameter> input_parameters
     {
         INPUT.cal_cond = *static_cast<bool*>(input_parameters["cal_cond"].get());
     }
-    else if (input_parameters.count("cond_nche") != 0)
+    else if (input_parameters.count("cond_che_thr") != 0)
     {
-        INPUT.cond_nche = *static_cast<int*>(input_parameters["cond_nche"].get());
+        INPUT.cond_che_thr = *static_cast<double*>(input_parameters["cond_che_thr"].get());
     }
     else if (input_parameters.count("cond_dw") != 0)
     {
@@ -526,6 +534,10 @@ bool input_parameters_set(std::map<std::string, InputParameter> input_parameters
     else if (input_parameters.count("cond_dtbatch") != 0)
     {
         INPUT.cond_dtbatch = *static_cast<int*>(input_parameters["cond_dtbatch"].get());
+    }
+    else if (input_parameters.count("cond_smear") != 0)
+    {
+        INPUT.cond_smear = *static_cast<int*>(input_parameters["cond_smear"].get());
     }
     else if (input_parameters.count("cond_fwhm") != 0)
     {
@@ -654,6 +666,10 @@ bool input_parameters_set(std::map<std::string, InputParameter> input_parameters
     else if (input_parameters.count("gamma_only_local") != 0)
     {
         INPUT.gamma_only_local = *static_cast<bool*>(input_parameters["gamma_only_local"].get());
+    }
+    else if (input_parameters.count("fft_mode") != 0)
+    {
+        INPUT.fft_mode = *static_cast<int*>(input_parameters["fft_mode"].get());
     }
     else if (input_parameters.count("ecutwfc") != 0)
     {
@@ -819,6 +835,22 @@ bool input_parameters_set(std::map<std::string, InputParameter> input_parameters
     {
         INPUT.mixing_gg0 = *static_cast<double*>(input_parameters["mixing_gg0"].get());
     }
+    else if (input_parameters.count("mixing_beta_mag") != 0)
+    {
+        INPUT.mixing_beta_mag = *static_cast<double*>(input_parameters["mixing_beta_mag"].get());
+    }
+    else if (input_parameters.count("mixing_gg0_mag") != 0)
+    {
+        INPUT.mixing_gg0_mag = *static_cast<double*>(input_parameters["mixing_gg0_mag"].get());
+    }
+    else if (input_parameters.count("mixing_gg0_min") != 0)
+    {
+        INPUT.mixing_gg0_min = *static_cast<double*>(input_parameters["mixing_gg0_min"].get());
+    }
+    else if (input_parameters.count("mixing_angle") != 0)
+    {
+        INPUT.mixing_angle = *static_cast<double*>(input_parameters["mixing_angle"].get());
+    }
     else if (input_parameters.count("mixing_tau") != 0)
     {
         INPUT.mixing_tau = *static_cast<bool*>(input_parameters["mixing_tau"].get());
@@ -893,7 +925,11 @@ bool input_parameters_set(std::map<std::string, InputParameter> input_parameters
     }
     else if (input_parameters.count("out_mat_hs") != 0)
     {
-        INPUT.out_mat_hs = *static_cast<bool*>(input_parameters["out_mat_hs"].get());
+        INPUT.out_mat_hs = *static_cast<std::vector<int>*>(input_parameters["out_mat_hs"].get());
+    }
+    else if (input_parameters.count("out_mat_xc") != 0)
+    {
+        INPUT.out_mat_xc = *static_cast<bool*>(input_parameters["out_mat_xc"].get());
     }
     else if (input_parameters.count("cal_syns") != 0)
     {

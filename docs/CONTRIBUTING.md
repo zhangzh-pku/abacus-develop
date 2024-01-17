@@ -230,7 +230,7 @@ To add a unit test:
     ```
     ./cell_unitcell_test
     ```
-    in the director of `build/source/cell/test` to run the test `cell_unitcell_test`.  
+    under the directory of `build/source/module_cell/test` to run the test `cell_unitcell_test`.  
     However, it is more convenient to run unit tests with `ctest` command under the `build` directory. You can check all unit tests by
     ```bash
     ctest -N
@@ -280,7 +280,7 @@ For the unexpected results when developing ABACUS, [GDB](https://www.sourceware.
 
 4. For debugging ABACUS in multiprocessing situation, `mpirun -n 1 gdb abacus : -n 3 abacus` will attach GDB to the master process, and launch 3 other MPI processes.
 
-For segmentation faults, ABACUS can be built with [Address Sanitizer](https://github.com/google/sanitizers/wiki/AddressSanitizer) to locate the bugs. This feature requires a GCC or Clang compiler, and does not support Intel compiler.
+For segmentation faults, ABACUS can be built with [Address Sanitizer](https://github.com/google/sanitizers/wiki/AddressSanitizer) to locate the bugs.
 
 ```bash
 cmake -B build -DENABLE_ASAN=1

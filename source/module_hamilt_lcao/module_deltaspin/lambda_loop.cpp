@@ -26,9 +26,6 @@ void SpinConstrain<std::complex<double>, psi::DEVICE_CPU>::run_lambda_loop(int o
     double mean_error, mean_error_old, rms_error;
     double g;
 
-    // calculate number of components to be constrained
-    double num_component = sum_2d(this->constrain_);
-
     double alpha_trial = this->alpha_trial_;
 
     const double zero = 0.0;
@@ -42,9 +39,9 @@ void SpinConstrain<std::complex<double>, psi::DEVICE_CPU>::run_lambda_loop(int o
         {
             spin = this->Mi_;
             where_fill_scalar_else_2d(this->constrain_, 0, zero, this->lambda_, initial_lambda);
-            print_2d("initial lambda: ", initial_lambda);
-            print_2d("initial spin: ", spin);
-            print_2d("target spin: ", this->target_mag_);
+            print_2d("initial lambda: ", initial_lambda, this->nspin_);
+            print_2d("initial spin: ", spin, this->nspin_);
+            print_2d("target spin: ", this->target_mag_, this->nspin_);
         }
         else
         {
@@ -71,7 +68,7 @@ void SpinConstrain<std::complex<double>, psi::DEVICE_CPU>::run_lambda_loop(int o
                 temp_1[ia][ic] = std::pow(delta_spin[ia][ic],2);
             }
         }
-        mean_error = sum_2d(temp_1) / num_component;
+        mean_error = sum_2d(temp_1) / nat;
         rms_error = std::sqrt(mean_error);
         if (this->check_rms_stop(outer_step, i_step, rms_error))
         {

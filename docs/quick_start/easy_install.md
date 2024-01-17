@@ -41,10 +41,10 @@ Please refer to our [guide](https://github.com/deepmodeling/abacus-develop/wiki/
 
 ## Install requirements by toolchain
 
-We offer a set of [toolchain](https://github.com/deepmodeling/abacus-develop/tree/develop/toolchain) 
+We offer a set of [toolchain](https://github.com/deepmodeling/abacus-develop/tree/develop/toolchain)
 scripts to compile and install all the requirements
-automatically and suitable for machine characteristic in an online or offline way. 
-The toolchain can be downloaded with ABACUS repo, which is easily used and can 
+automatically and suitable for machine characteristic in an online or offline way.
+The toolchain can be downloaded with ABACUS repo, which is easily used and can
 have a convenient installation under HPC environment in both `GNU` or `Intel-oneAPI` toolchain.
 Sometimes, ABACUS by toolchain installation may have highly efficient performance.
 A Tutorial for using this toolchain can be accessed in [bohrium-notebook](https://nb.bohrium.dp.tech/detail/5215742477)
@@ -128,7 +128,7 @@ Here, 'build' is the path for building ABACUS; and '-D' is used for setting up s
   - `BUILD_TESTING=OFF`: [Build unit tests](../advanced/install.md#build-unit-tests).
   - `ENABLE_MPI=ON`: Enable MPI parallel compilation. If set to `OFF`, a serial version of ABACUS with PW basis only will be compiled. Currently serial version of ABACUS with LCAO basis is not supported yet, so `ENABLE_LCAO` will be automatically set to `OFF`.
   - `ENABLE_COVERAGE=OFF`: Build ABACUS executable supporting [coverage analysis](../CONTRIBUTING.md#generating-code-coverage-report). This feature has a drastic impact on performance.
-  - `ENABLE_ASAN=OFF`: Build with Address Sanitizer. This feature would help detecting memory problems. Only supports GCC.
+  - `ENABLE_ASAN=OFF`: Build with Address Sanitizer. This feature would help detecting memory problems.
   - `USE_ELPA=ON`: Use ELPA library in LCAO calculations. If this value is set to OFF, ABACUS can be compiled without ELPA library.
 
 Here is an example:
@@ -197,7 +197,7 @@ We also support [Gitpod](https://www.gitpod.io/): [Open in Gitpod](https://gitpo
 
 ## Install by conda
 
-Conda is a package management system with a separated environment, not requiring system privileges. A pre-built ABACUS binary with all requirements is available at [conda-forge](https://anaconda.org/conda-forge/abacus). Conda will install the GPU-accelerated version of ABACUS if a valid GPU driver is present.
+Conda is a package management system with a separated environment, not requiring system privileges. A pre-built ABACUS binary with all requirements is available at [conda-forge](https://anaconda.org/conda-forge/abacus). It supports advanced features including Libxc, LibRI, and DeePKS. Conda will install the GPU-supported version of ABACUS if a valid GPU driver is present. Please refer to [the advanced installation guide](../advanced/install.md) for more details.
 
 ```bash
 # Install
@@ -212,6 +212,31 @@ OMP_NUM_THREADS=1 mpirun -n 4 abacus
 conda update -n abacus_env abacus -c conda-forge
 ```
 
-For more details on building a conda package of ABACUS, please refer to the [conda recipe file](https://github.com/deepmodeling/abacus-develop/blob/develop/conda/meta.yaml).
+> If OpenBLAS gives warning about OpenMP threads, please install conda package `openblas=*=openmp*` or `blas=*=mkl`. See [switching BLAS implementation in conda](https://conda-forge.org/docs/maintainer/knowledge_base.html#switching-blas-implementation).
+
+> ABACUS supports `OpenMPI` and `MPICH` variant. Install `mpich` or `openmpi` package to switch MPI library if required.
+
+For more details on building a conda package of ABACUS locally, please refer to the [conda recipe file](https://github.com/deepmodeling/abacus-develop/blob/develop/conda/meta.yaml).
 
 > Note: The [deepmodeling conda channel](https://anaconda.org/deepmodeling/abacus) offers historical versions of ABACUS.
+
+### Developing with conda
+
+It is possible to build ABACUS from source based on the conda environment.
+
+```bash
+conda create -n abacus_env abacus -c conda-forge
+conda activate abacus_env
+export CMAKE_PREFIX_PATH=$CONDA_PREFIX:$CMAKE_PREFIX_PATH
+
+# By default OpenBLAS is used; run `conda install "blas=*=mkl" mkl_fft -c conda-forge` to switch implementation.
+export MKLROOT=$CONDA_PREFIX # If Intel MKL is required.
+
+export CMAKE_PREFIX_PATH=`python -c 'import torch;print(torch.utils.cmake_prefix_path)'`:$CMAKE_PREFIX_PATH # If DEEPKS support is required;
+# usually expands to `$CONDA_PREFIX/lib/python3.1/site-packages/torch/share/cmake`
+```
+
+And, follow the instructions in [Build and Install](#build-and-install) part above withou manually setting paths to dependencies.
+See [the advanced installation guide](../advanced/install.md) for more features.
+Make sure the environment variables are set before running `cmake`.
+Possible command: `cmake -B build -DENABLE_DEEPKS=ON -DENABLE_LIBXC=ON -DENABLE_LIBRI=ON`.

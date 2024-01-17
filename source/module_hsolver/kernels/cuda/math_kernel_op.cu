@@ -21,6 +21,20 @@ struct GetTypeReal<thrust::complex<double>> {
     using type = double; /**< The return type specialization for std::complex<double>. */
 };
 namespace hsolver {
+template <typename T>
+struct GetTypeThrust {
+    using type = T;
+};
+
+template <>
+struct GetTypeThrust<std::complex<float>> {
+    using type = thrust::complex<float>; /**< The return type specialization for std::complex<float>. */
+};
+
+template <>
+struct GetTypeThrust<std::complex<double>> {
+    using type = thrust::complex<double>; /**< The return type specialization for std::complex<float>. */
+};
 
 static cublasHandle_t cublas_handle = nullptr;
 
@@ -260,14 +274,14 @@ __global__ void vector_div_vector_kernel(
     }
 }
 
-template <typename FPTYPE>
+template <typename T, typename Real>
 __global__ void constantvector_addORsub_constantVector_kernel(
     const int size,
-    thrust::complex<FPTYPE>* result,
-    const thrust::complex<FPTYPE>* vector1,
-    const FPTYPE constant1,
-    const thrust::complex<FPTYPE>* vector2,
-    const FPTYPE constant2)
+    T* result,
+    const T* vector1,
+    const Real constant1,
+    const T* vector2,
+    const Real constant2)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i < size) 
@@ -563,27 +577,43 @@ void vector_div_vector_op<std::complex<double>, psi::DEVICE_GPU>::operator()(
     vector_div_vector_complex_wrapper(d, dim, result, vector1, vector2);
 }
 // vector operator: result[i] = vector1[i] * constant1 + vector2[i] * constant2
-template <typename FPTYPE> 
-void constantvector_addORsub_constantVector_op<FPTYPE, psi::DEVICE_GPU>::operator()(
+template <typename T>
+void constantvector_addORsub_constantVector_op<T, psi::DEVICE_GPU>::operator()(
     const psi::DEVICE_GPU* d,
     const int& dim,
-    std::complex<FPTYPE>* result,
-    const std::complex<FPTYPE>* vector1,
-    const FPTYPE constant1,
-    const std::complex<FPTYPE>* vector2,
-    const FPTYPE constant2)
+    T* result,
+    const T* vector1,
+    const Real constant1,
+    const T* vector2,
+    const Real constant2) 
 {
-    thrust::complex<FPTYPE>* result_tmp = reinterpret_cast<thrust::complex<FPTYPE>*>(result);
-    const thrust::complex<FPTYPE>* vector1_tmp = reinterpret_cast<const thrust::complex<FPTYPE>*>(vector1);
-    const thrust::complex<FPTYPE>* vector2_tmp = reinterpret_cast<const thrust::complex<FPTYPE>*>(vector2);
+    using Type = typename GetTypeThrust<T>::type;
+    using Real = typename GetTypeReal<T>::type;
+    
+    auto result_tmp = reinterpret_cast<Type*>(result);
+    auto vector1_tmp = reinterpret_cast<const Type*>(vector1);
+    auto vector2_tmp = reinterpret_cast<const Type*>(vector2);
 
     int thread = 1024;
     int block = (dim + thread - 1) / thread;
-    constantvector_addORsub_constantVector_kernel<FPTYPE><<<block, thread>>>(dim, result_tmp, vector1_tmp,constant1, vector2_tmp, constant2);
+    constantvector_addORsub_constantVector_kernel<Type, Real> <<<block, thread >>>(dim, result_tmp, vector1_tmp, constant1, vector2_tmp, constant2);
 }
 
-template <> 
-void axpy_op<float, psi::DEVICE_GPU>::operator()(
+template <>
+void axpy_op<double, psi::DEVICE_GPU>::operator()(
+    const psi::DEVICE_GPU* d,
+    const int& N,
+    const double* alpha,
+    const double* X,
+    const int& incX,
+    double* Y,
+    const int& incY)
+{
+    cublasErrcheck(cublasDaxpy(cublas_handle, N, alpha, X, incX, Y, incY));
+}
+
+template <>
+void axpy_op<std::complex<float>, psi::DEVICE_GPU>::operator()(
     const psi::DEVICE_GPU* d,
     const int& N,
     const std::complex<float> *alpha,
@@ -596,7 +626,7 @@ void axpy_op<float, psi::DEVICE_GPU>::operator()(
 }
 
 template <> 
-void axpy_op<double, psi::DEVICE_GPU>::operator()(
+void axpy_op<std::complex<double>, psi::DEVICE_GPU>::operator()(
     const psi::DEVICE_GPU* d,
     const int& N,
     const std::complex<double> *alpha,
@@ -969,7 +999,7 @@ template struct line_minimize_with_block_op<std::complex<float>, psi::DEVICE_GPU
 template struct vector_div_constant_op<std::complex<float>, psi::DEVICE_GPU>;
 template struct vector_mul_vector_op<std::complex<float>, psi::DEVICE_GPU>;
 template struct vector_div_vector_op<std::complex<float>, psi::DEVICE_GPU>;
-template struct constantvector_addORsub_constantVector_op<float, psi::DEVICE_GPU>;
+template struct constantvector_addORsub_constantVector_op<std::complex<float>, psi::DEVICE_GPU>;
 template struct matrixSetToAnother<std::complex<float>, psi::DEVICE_GPU>;
 
 template struct dot_real_op<std::complex<double>, psi::DEVICE_GPU>;
@@ -978,7 +1008,7 @@ template struct line_minimize_with_block_op<std::complex<double>, psi::DEVICE_GP
 template struct vector_div_constant_op<std::complex<double>, psi::DEVICE_GPU>;
 template struct vector_mul_vector_op<std::complex<double>, psi::DEVICE_GPU>;
 template struct vector_div_vector_op<std::complex<double>, psi::DEVICE_GPU>;
-template struct constantvector_addORsub_constantVector_op<double, psi::DEVICE_GPU>;
+template struct constantvector_addORsub_constantVector_op<std::complex<double>, psi::DEVICE_GPU>;
 template struct matrixSetToAnother<std::complex<double>, psi::DEVICE_GPU>;
 
 #ifdef __LCAO
@@ -987,5 +1017,6 @@ template struct vector_div_constant_op<double, psi::DEVICE_GPU>;
 template struct vector_mul_vector_op<double, psi::DEVICE_GPU>;
 template struct vector_div_vector_op<double, psi::DEVICE_GPU>;
 template struct matrixSetToAnother<double, psi::DEVICE_GPU>;
+template struct constantvector_addORsub_constantVector_op<double, psi::DEVICE_GPU>;
 #endif
 }  // namespace hsolver

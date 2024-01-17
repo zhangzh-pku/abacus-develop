@@ -65,6 +65,10 @@ int UnitCell::read_atom_species(std::ifstream &ifa, std::ofstream &ofs_running)
 					{
 						pseudo_type[i] = one_string;
 					}
+					else if (one_string == "1/r")
+					{
+						atoms[i].coulomb_potential = true;
+					}
 					else
 					{
 						GlobalV::ofs_warning << "unrecongnized pseudopotential type: " << one_string << ", check your STRU file." << std::endl;
@@ -91,6 +95,7 @@ int UnitCell::read_atom_species(std::ifstream &ifa, std::ofstream &ofs_running)
 
 	if(
 		(GlobalV::BASIS_TYPE == "lcao")
+	  ||(GlobalV::BASIS_TYPE == "lcao_in_pw")
 	  ||(
 		  (GlobalV::BASIS_TYPE == "pw")
 		&&(GlobalV::psi_initializer)
@@ -169,7 +174,15 @@ int UnitCell::read_atom_species(std::ifstream &ifa, std::ofstream &ofs_running)
 	// Read in latticies vector
 	//===========================
 	if(latName=="none"){	
-		if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_VECTORS") )
+		if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS", 1, false) )
+		{
+			ModuleBase::WARNING_QUIT("UnitCell::read_atom_species","do not use LATTICE_PARAMETERS without explicit specification of lattice type");
+		}
+		if( !ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_VECTORS") )
+		{
+			ModuleBase::WARNING_QUIT("UnitCell::read_atom_species","Please set LATTICE_VECTORS in STRU file");
+		}
+		else if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_VECTORS") )
 		{
 			// Reading lattice vectors. notice
 			// here that only one cpu read these
@@ -181,13 +194,9 @@ int UnitCell::read_atom_species(std::ifstream &ifa, std::ofstream &ofs_running)
 			ifa >> latvec.e31 >> latvec.e32;
 			ModuleBase::GlobalFunc::READ_VALUE(ifa, latvec.e33);
 		}
-		if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_PARAMETERS") )
-		{
-			ModuleBase::WARNING_QUIT("UnitCell::read_atom_species","do not use LATTICE_PARAMETERS without explicit specification of lattice type");
-		}
 	}//supply lattice vectors
 	else{
-		if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_VECTORS") )
+		if( ModuleBase::GlobalFunc::SCAN_BEGIN(ifa, "LATTICE_VECTORS", 1, false) )
 		{
 			ModuleBase::WARNING_QUIT("UnitCell::read_atom_species","do not use LATTICE_VECTORS along with explicit specification of lattice type");
 		}
@@ -627,6 +636,9 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
 					{
 						if(GlobalV::NONCOLIN)
 						{
+							//if magnetization only along z-axis, default settings are DOMAG_Z=true and DOMAG=false
+							GlobalV::DOMAG_Z = false;
+							GlobalV::DOMAG = true;
 							if(input_angle_mag)
 							{
 								atoms[it].m_loc_[ia].z = atoms[it].mag[ia] *
@@ -637,9 +649,6 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
 										sin(atoms[it].angle1[ia]) * cos(atoms[it].angle2[ia]);
 									atoms[it].m_loc_[ia].y = atoms[it].mag[ia] *
 										sin(atoms[it].angle1[ia]) * sin(atoms[it].angle2[ia]);
-									//if magnetization only along z-axis, default settings are DOMAG_Z=true and DOMAG=false
-									GlobalV::DOMAG_Z = false;
-									GlobalV::DOMAG = true;
 								}
 							}
 							else if (input_vec_mag)
@@ -649,10 +658,13 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
 								if(mxy>1e-8)
 								{
 									atoms[it].angle2[ia]=atan2(atoms[it].m_loc_[ia].y,atoms[it].m_loc_[ia].x);
-									//if magnetization only along z-axis, default settings are DOMAG_Z=true and DOMAG=false
-									GlobalV::DOMAG_Z = false;
-									GlobalV::DOMAG = true;
 								}
+							}
+							else
+							{
+								atoms[it].m_loc_[ia].x = 0;
+								atoms[it].m_loc_[ia].y = 0;
+								atoms[it].m_loc_[ia].z = atoms[it].mag[ia];
 							}
 						}
 						else
@@ -697,7 +709,6 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
 							ModuleBase::GlobalFunc::OUT(ofs_running, ss.str(),atoms[it].mag[ia]);
 						}
 					}
-
 			
 					if(Coordinate=="Direct")
 					{
@@ -792,7 +803,51 @@ bool UnitCell::read_atom_positions(std::ifstream &ifpos, std::ofstream &ofs_runn
                 magnet.start_magnetization[it] = 0.0;
             }
         } // end for ntype
-    }     // end scan_begin
+		// Start Autoset magnetization
+		// defaultly set a finite magnetization if magnetization is not specified
+		int autoset_mag = 1;
+		for (int it = 0;it < ntype; it++)
+		{
+			for (int ia = 0;ia < this->atoms[it].na; ia++)
+			{
+				if(std::abs(atoms[it].mag[ia]) > 1e-5)
+				{
+					autoset_mag = 0;
+					break;
+				}
+			}
+		}
+		if (autoset_mag)
+		{
+			if(GlobalV::NSPIN==4)
+			{
+				for (int it = 0;it < ntype; it++)
+				{
+					for (int ia = 0;ia < this->atoms[it].na; ia++)
+					{
+						atoms[it].m_loc_[ia].x = 1.0;
+						atoms[it].m_loc_[ia].y = 1.0;
+						atoms[it].m_loc_[ia].z = 1.0;
+						atoms[it].mag[ia] = sqrt(pow(atoms[it].m_loc_[ia].x,2)+pow(atoms[it].m_loc_[ia].y,2)+pow(atoms[it].m_loc_[ia].z,2));
+						ModuleBase::GlobalFunc::OUT(ofs_running,"Autoset magnetism for this atom", 1.0, 1.0, 1.0);
+					}
+				}
+			}
+			else if(GlobalV::NSPIN==2)
+			{
+				for (int it = 0;it < ntype; it++)
+				{
+					for (int ia = 0;ia < this->atoms[it].na; ia++)
+					{
+						atoms[it].mag[ia] = 1.0;
+						atoms[it].m_loc_[ia].x = atoms[it].mag[ia];
+						ModuleBase::GlobalFunc::OUT(ofs_running,"Autoset magnetism for this atom", 1.0);
+					}
+				}
+			}
+		}
+		// End Autoset magnetization
+    }   // end scan_begin
 
 //check if any atom can move in MD
 	if(!this->if_atoms_can_move() && GlobalV::CALCULATION=="md" && GlobalV::ESOLVER_TYPE!="tddft")
@@ -1284,6 +1339,6 @@ void UnitCell::read_orb_file(int it, std::string &orb_file, std::ofstream &ofs_r
 	ifs.close();
 	if(!atom->nw)
 	{
-		std::cout << "ERROR: " << atom->label << " nw = " << atom->nw << std::endl;
+		ModuleBase::WARNING_QUIT("read_orb_file","get nw = 0");
 	}
 }

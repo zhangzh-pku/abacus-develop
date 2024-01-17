@@ -47,7 +47,7 @@ namespace ModuleESolver
         /// charge mixing
         ///----------------------------------------------------------
         p_chgmix = new Charge_Mixing();
-        p_chgmix->set_rhopw(this->pw_rho);
+        p_chgmix->set_rhopw(this->pw_rho, this->pw_rhod);
 
         ///----------------------------------------------------------
         /// wavefunc
@@ -78,15 +78,21 @@ namespace ModuleESolver
                              GlobalV::MIXING_BETA,
                              GlobalV::MIXING_NDIM,
                              GlobalV::MIXING_GG0,
-                             GlobalV::MIXING_TAU);
+                             GlobalV::MIXING_TAU,
+                             GlobalV::MIXING_BETA_MAG);
+        // I use default value to replace autoset                     
         // using bandgap to auto set mixing_beta
-        if (std::abs(GlobalV::MIXING_BETA + 10.0) < 1e-6)
-        {
-            p_chgmix->need_auto_set();
-        }
-        else if (GlobalV::MIXING_BETA > 1.0 || GlobalV::MIXING_BETA < 0.0)
+        // if (std::abs(GlobalV::MIXING_BETA + 10.0) < 1e-6)
+        //{
+        //    p_chgmix->need_auto_set();
+        //}
+        if (GlobalV::MIXING_BETA > 1.0 || GlobalV::MIXING_BETA < 0.0)
         {
             ModuleBase::WARNING("INPUT", "You'd better set mixing_beta to [0.0, 1.0]!");
+        }
+        if (GlobalV::MIXING_BETA_MAG < 0.0)
+        {
+            ModuleBase::WARNING("INPUT", "You'd better set mixing_beta_mag >= 0.0!");
         }
         
 #ifdef USE_PAW
@@ -176,12 +182,12 @@ namespace ModuleESolver
         // symmetry analysis should be performed every time the cell is changed
         if (ModuleSymmetry::Symmetry::symm_flag == 1)
         {
-            this->symm.analy_sys(ucell, GlobalV::ofs_running);
+            ucell.symm.analy_sys(ucell.lat, ucell.st, ucell.atoms, GlobalV::ofs_running);
             ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running, "SYMMETRY");
         }
 
         // Setup the k points according to symmetry.
-        this->kv.set(this->symm, GlobalV::global_kpoint_card, GlobalV::NSPIN, ucell.G, ucell.latvec);
+        this->kv.set(ucell.symm, GlobalV::global_kpoint_card, GlobalV::NSPIN, ucell.G, ucell.latvec);
         ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running, "INIT K-POINTS");
 
         // print information
@@ -206,6 +212,7 @@ namespace ModuleESolver
             MPI_Allreduce(MPI_IN_PLACE, &this->pw_wfc->ggecut, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
             // qianrui add 2021-8-13 to make different kpar parameters can get the same results
 #endif
+        this->pw_wfc->ft.fft_mode = inp.fft_mode;
         this->pw_wfc->setuptransform();
         for (int ik = 0; ik < this->kv.nks; ++ik)
             this->kv.ngk[ik] = this->pw_wfc->npwk[ik];
@@ -235,12 +242,38 @@ namespace ModuleESolver
             GlobalC::paw_cell.set_libpaw_fft(this->pw_wfc->nx,this->pw_wfc->ny,this->pw_wfc->nz,
                                             this->pw_wfc->nx,this->pw_wfc->ny,this->pw_wfc->nz,
                                             this->pw_wfc->startz,this->pw_wfc->numz);
+#ifdef __MPI
+            if(GlobalV::RANK_IN_POOL == 0) GlobalC::paw_cell.prepare_paw();
+#else
             GlobalC::paw_cell.prepare_paw();
+#endif
             GlobalC::paw_cell.set_sij();
 
             GlobalC::paw_cell.set_eigts(
                 this->pw_wfc->nx,this->pw_wfc->ny,this->pw_wfc->nz,
                 this->sf.eigts1.c,this->sf.eigts2.c,this->sf.eigts3.c);
+
+            std::vector<std::vector<double>> rhoijp;
+            std::vector<std::vector<int>> rhoijselect;
+            std::vector<int> nrhoijsel;
+#ifdef __MPI
+            if(GlobalV::RANK_IN_POOL == 0)
+            {
+                GlobalC::paw_cell.get_rhoijp(rhoijp, rhoijselect, nrhoijsel);
+
+                for(int iat = 0; iat < GlobalC::ucell.nat; iat ++)
+                {
+                    GlobalC::paw_cell.set_rhoij(iat,nrhoijsel[iat],rhoijselect[iat].size(),rhoijselect[iat].data(),rhoijp[iat].data());
+                }  
+            }
+#else
+            GlobalC::paw_cell.get_rhoijp(rhoijp, rhoijselect, nrhoijsel);
+
+            for(int iat = 0; iat < GlobalC::ucell.nat; iat ++)
+            {
+                GlobalC::paw_cell.set_rhoij(iat,nrhoijsel[iat],rhoijselect[iat].size(),rhoijselect[iat].data(),rhoijp[iat].data());
+            }
+#endif
         }
 #endif
     }
@@ -387,23 +420,24 @@ namespace ModuleESolver
                     {
                         //----------charge mixing---------------
                         //before first calling mix_rho(), bandgap and cell structure can be analyzed to get better default parameters
-                        if(iter == 1)
-                        {
-                            double bandgap_for_autoset = 0.0;
-                            if (!GlobalV::TWO_EFERMI)
-                            {
-                                this->pelec->cal_bandgap();
-                                bandgap_for_autoset = this->pelec->bandgap;
-                            }
-                            else
-                            {
-                                this->pelec->cal_bandgap_updw();
-                                bandgap_for_autoset = std::min(this->pelec->bandgap_up, this->pelec->bandgap_dw);
-                            }
-                            p_chgmix->auto_set(bandgap_for_autoset, GlobalC::ucell);
-                        }
+                        // if(iter == 1)
+                        // {
+                        //     double bandgap_for_autoset = 0.0;
+                        //     if (!GlobalV::TWO_EFERMI)
+                        //     {
+                        //         this->pelec->cal_bandgap();
+                        //         bandgap_for_autoset = this->pelec->bandgap;
+                        //     }
+                        //     else
+                        //     {
+                        //         this->pelec->cal_bandgap_updw();
+                        //         bandgap_for_autoset = std::min(this->pelec->bandgap_up, this->pelec->bandgap_dw);
+                        //     }
+                        //     p_chgmix->auto_set(bandgap_for_autoset, GlobalC::ucell);
+                        // }
                         
                         p_chgmix->mix_rho(pelec->charge);
+                        if (GlobalV::SCF_THR_TYPE == 2) pelec->charge->renormalize_rho(); // renormalize rho in R-space would induce a error in K-space
                         //----------charge mixing done-----------
                     }
                 }
@@ -422,6 +456,9 @@ namespace ModuleESolver
 #else
                 double duration = (std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now() - iterstart)).count() / static_cast<double>(1e6);
 #endif
+                /*
+                    SCF print: G1    -3.435545e+03  0.000000e+00   3.607e-01  2.862e-01
+                */
                 printiter(iter, drho, duration, diag_ethr);
                 if (this->conv_elec && iter >= 5)
                 {
