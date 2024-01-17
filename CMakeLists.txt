@@ -11,9 +11,9 @@ project(ABACUS
 )
 
 # private options, should not be pushed to master
-# set(PEXSI_DIR "~/Documents/projects/abacus-dependencies/pexsi")
-# set(SuperLU_DIR "~/Documents/projects/abacus-dependencies/superlu")
-# set(ParMETIS_DIR "~/Documents/projects/abacus-dependencies/parmetis")
+# set(PEXSI_DIR "~/projects/pexsi-build/pexsi")
+# set(SuperLU_DIR "~/projects/pexsi-build/superlu")
+# set(ParMETIS_DIR "~/projects/pexsi-build/parmetis")
 # set(ELPA_INCLUDE_DIR "/usr/include/elpa_openmp-2023.05.001")
 
 option(ENABLE_LCAO "Enable LCAO calculation." ON)

@@ -16,6 +16,10 @@
 #ifdef __CUSOLVER_LCAO
 #include "diago_cusolver.h"
 #endif
+#ifdef __PEXSI
+#include "diago_pexsi.h"
+#include "module_elecstate/elecstate_lcao.h"
+#endif
 
 namespace hsolver
 {
