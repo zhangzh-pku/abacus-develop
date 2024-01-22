@@ -7,8 +7,8 @@
 #include <map>
 #include <vector>
 
-#include "DistBCDMatrix.h"
-#include "DistCCSMatrix.h"
+#include "dist_bcd_matrix.h"
+#include "dist_ccs_matrix.h"
 
 // for debug
 #ifdef _DEBUG
@@ -21,6 +21,8 @@
 #endif
 // end debug
 
+namespace pexsi
+{
 // find the minimum index, the return value will be a non-negtive value index value if it is found, otherwise will be a
 // negtive value the size_process and displacement_process array will be changed after the index is found isFirst:
 // wether this function is called for the first time for a index array; nprocs: total number of processes size_process:
@@ -232,7 +234,7 @@ inline int getNonZeroIndex(char LAYOUT,
                 idx = i * nrow + j;
                 if (fabs(H_2d[idx]) > ZERO_Limit || fabs(S_2d[idx]) > ZERO_Limit)
                 {
-                     ++nnz;
+                    ++nnz;
                     colidx.push_back(i);
                     rowidx.push_back(j);
                 }
@@ -1592,3 +1594,5 @@ MPI_Barrier(COMM_TRANS);
 #endif
     return 0;
 }
+
+} // namespace pexsi

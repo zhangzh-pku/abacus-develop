@@ -1,6 +1,8 @@
 #ifndef PEXSI_Solver_H
 #define PEXSI_Solver_H
 
+namespace pexsi
+{
 class PEXSI_Solver
 {
   public:
@@ -16,6 +18,11 @@ class PEXSI_Solver
                  double& totalEnergyS,
                  double& totalFreeEnergy);
     int solve();
+    const double* get_DM() const;
+    const double* get_EDM() const;
+    const double get_totalFreeEnergy() const;
+
+  private:
     int blacs_text;
     int nb;
     int nrow;
@@ -28,5 +35,5 @@ class PEXSI_Solver
     double totalEnergyS;
     double totalFreeEnergy;
 };
-
+} // namespace pexsi
 #endif // PEXSI_Solver_H

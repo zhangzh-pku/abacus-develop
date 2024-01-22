@@ -11,14 +11,16 @@
 #include <iostream>
 #include <memory>
 
-#include "DistBCDMatrix.h"
-#include "DistCCSMatrix.h"
-#include "DistMatrixTransformer.h"
 #include "c_pexsi_interface.h"
+#include "dist_bcd_matrix.h"
+#include "dist_ccs_matrix.h"
+#include "dist_matrix_transformer.h"
 #include "module_base/lapack_connector.h"
 #include "module_base/timer.h"
 #include "module_base/tool_quit.h"
 
+namespace pexsi
+{
 inline void strtolower(char* sa, char* sb)
 {
     char c;
@@ -700,3 +702,4 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     // MPI_Barrier(MPI_COMM_WORLD);
     return 0;
 }
+} // namespace pexsi

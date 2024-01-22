@@ -24,7 +24,7 @@ void DiagoPexsi<double>::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<double>& 
     phm_in->matrix(h_mat, s_mat);
     std::vector<double> eigen(GlobalV::NLOCAL, 0.0);
     MPI_Comm COMM_DIAG = MPI_COMM_WORLD;
-    this->ps = new PEXSI_Solver(this->ParaV->blacs_ctxt,
+    this->ps = new pexsi::PEXSI_Solver(this->ParaV->blacs_ctxt,
                                 this->ParaV->nb,
                                 this->ParaV->nrow,
                                 this->ParaV->ncol,

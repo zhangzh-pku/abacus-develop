@@ -42,12 +42,7 @@ if(ENABLE_LCAO)
   list(APPEND objects
       diago_pexsi.cpp
     )
-    # add_library(
-    #     pexsi
-    #     OBJECT
-    #     ${objects}
-    # )
-    add_subdirectory(pexsi)
+    add_subdirectory(module_pexsi)
   endif()
 
 endif()

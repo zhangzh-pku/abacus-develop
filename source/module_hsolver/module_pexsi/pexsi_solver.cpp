@@ -5,8 +5,9 @@
 #include <cstring>
 
 #include "module_base/global_variable.h"
-#include "simplePEXSI.h"
 
+namespace pexsi
+{
 PEXSI_Solver::PEXSI_Solver(const int blacs_text,
                            const int nb,
                            const int nrow,
@@ -59,3 +60,19 @@ int PEXSI_Solver::solve()
                 this->totalFreeEnergy);
     return 0;
 }
+
+const double* PEXSI_Solver::get_DM() const
+{
+    return DM;
+}
+
+const double* PEXSI_Solver::get_EDM() const
+{
+    return EDM;
+}
+
+const double PEXSI_Solver::get_totalFreeEnergy() const
+{
+    return totalFreeEnergy;
+}
+} // namespace pexsi
