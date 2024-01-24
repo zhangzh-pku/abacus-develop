@@ -10,12 +10,6 @@ project(ABACUS
     LANGUAGES CXX
 )
 
-# private options, should not be pushed to master
-# set(PEXSI_DIR "~/projects/pexsi-build/pexsi")
-# set(SuperLU_DIR "~/projects/pexsi-build/superlu")
-# set(ParMETIS_DIR "~/projects/pexsi-build/parmetis")
-# set(ELPA_INCLUDE_DIR "/usr/include/elpa_openmp-2023.05.001")
-
 option(ENABLE_LCAO "Enable LCAO calculation." ON)
 option(ENABLE_DEEPKS "Enable DeePKS functionality" OFF)
 option(ENABLE_LIBXC "Enable LibXC functionality" OFF)
@@ -189,7 +183,7 @@ if(ENABLE_LCAO)
   
   if(USE_PEXSI)
     find_package(PEXSI REQUIRED)
-    target_link_libraries(${ABACUS_BIN_NAME} ${PEXSI_LIBRARY} ${SuperLU_LIBRARY} ${ParMETIS_LIBRARY} ${METIS_LIBRARY} pexsi)
+    target_link_libraries(${ABACUS_BIN_NAME} ${PEXSI_LIBRARY} ${SuperLU_DIST_LIBRARY} ${ParMETIS_LIBRARY} ${METIS_LIBRARY} pexsi)
     include_directories(${PEXSI_INCLUDE_DIR} ${ParMETIS_INCLUDE_DIR})
     add_compile_definitions(__PEXSI)
   endif()
