@@ -4086,7 +4086,7 @@ void Input::Check(void)
             GlobalV::ofs_warning << " It's ok to use pexsi." << std::endl;
 #else
             ModuleBase::WARNING_QUIT("Input",
-                "Can not use genelpa if abacus is not compiled with PEXSI. Please change ks_solver to scalapack_gvx.");
+                "Can not use PEXSI if abacus is not compiled with PEXSI. Please change ks_solver to scalapack_gvx.");
 #endif
 
 
