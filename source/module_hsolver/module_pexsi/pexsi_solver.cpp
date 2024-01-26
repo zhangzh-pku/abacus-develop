@@ -1,3 +1,4 @@
+#ifdef __PEXSI
 #include "pexsi_solver.h"
 
 #include <mpi.h>
@@ -90,3 +91,4 @@ const double PEXSI_Solver::get_totalEnergyS() const
 }
 
 } // namespace pexsi
+#endif

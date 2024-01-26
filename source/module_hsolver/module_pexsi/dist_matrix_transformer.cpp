@@ -1,3 +1,4 @@
+#ifdef __PEXSI
 #include "dist_matrix_transformer.h"
 
 #include <mpi.h>
@@ -1601,3 +1602,4 @@ MPI_Barrier(COMM_TRANS);
 }
 
 } // namespace pexsi
+#endif
