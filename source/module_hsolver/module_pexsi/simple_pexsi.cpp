@@ -2,6 +2,7 @@
 // the H and S matrices are given by 2D block cyclic distribution
 // the Density Matrix and Energy Density Matrix calculated by PEXSI are transformed to 2D block cyclic distribution
 // #include "mpi.h"
+#ifdef __PEXSI
 #include <mpi.h>
 
 #include <cfloat>
@@ -729,3 +730,4 @@ int simplePEXSI(MPI_Comm comm_PEXSI,
     return 0;
 }
 } // namespace pexsi
+#endif
